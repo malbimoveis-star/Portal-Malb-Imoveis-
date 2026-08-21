@@ -31,12 +31,13 @@ const { config } = require('./config');
 const { applySecurityHeaders, getClientIp, checkRateLimit, iniciarLimpezaPeriodica } = require('./security');
 const { Router } = require('./router');
 const { requireAuth } = require('./auth');
-const { registerImoveisRoutes } = require('./routes/imoveis');
+const { registerImoveisRoutes, rowToImovel } = require('./routes/imoveis');
 const { registerLeadsRoutes } = require('./routes/leads');
 const { registerAuthRoutes } = require('./routes/auth');
 const { registerParceirosRoutes } = require('./routes/parceiros');
 const { registerUsuariosRoutes } = require('./routes/usuarios');
 const { db } = require('./db');
+const { buildImovelSeo, buildBuscaSeo, injectBasicSeo, setJsonLd } = require('./seo');
 
 const PORT = config.port;
 const STATIC_ROOT = path.join(__dirname, '..', '..', 'frontend', 'site');
@@ -106,6 +107,57 @@ function readBody(req) {
     });
     req.on('error', reject);
   });
+}
+
+// Fase 6.1: usado tanto no sitemap quanto no SEO server-side (canonical,
+// Open Graph). Só confia em "https" quando o cabeçalho vem de um proxy
+// reverso — mesmo critério já usado em security.js para o HSTS.
+function getBaseUrl(req) {
+  const protocolo = req.headers['x-forwarded-proto'] === 'https' ? 'https' : 'http';
+  return `${protocolo}://${req.headers.host}`;
+}
+
+// Fase 6.1: serve imovel.html/busca.html com título, description, canonical,
+// Open Graph, Twitter Card e JSON-LD já corretos no HTML (não só via JS) —
+// ver o comentário no topo de src/seo.js sobre por quê isso importa para
+// robôs que não executam JavaScript (prévias de link no WhatsApp etc).
+async function servePaginaComSeo(req, res, pathname, query) {
+  const fullPath = path.join(STATIC_ROOT, pathname);
+  let html;
+  try {
+    html = await fs.promises.readFile(fullPath, 'utf8');
+  } catch (err) {
+    return serveStatic(req, res, pathname);
+  }
+
+  const base = getBaseUrl(req);
+
+  if (pathname === '/imovel.html') {
+    const idNum = Number(query.id);
+    let im = null;
+    if (Number.isInteger(idNum)) {
+      const row = db.prepare('SELECT * FROM imoveis WHERE id = ?').get(idNum);
+      if (row) im = rowToImovel(row);
+    }
+    if (im) {
+      const seo = buildImovelSeo(im, base);
+      html = injectBasicSeo(html, seo);
+      html = setJsonLd(html, 'ld-json', seo.jsonLd);
+    } else {
+      // Sem imóvel válido: pelo menos um canonical/og:url reais (nunca deixar
+      // vazio) apontando para a própria URL requisitada, com o título/
+      // description padrão que já estão no arquivo.
+      const url = `${base}${pathname}${req.url.includes('?') ? req.url.slice(req.url.indexOf('?')) : ''}`;
+      html = html.replace(/(id="seo-canonical"[^>]*href=")[^"]*(")/, `$1${url}$2`).replace(/(id="og-url"[^>]*content=")[^"]*(")/, `$1${url}$2`);
+    }
+  } else if (pathname === '/busca.html') {
+    const seo = buildBuscaSeo(query, base);
+    html = injectBasicSeo(html, seo);
+    html = setJsonLd(html, 'ld-json', seo.jsonLd);
+  }
+
+  res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8', 'Content-Length': Buffer.byteLength(html) });
+  res.end(html);
 }
 
 async function serveStatic(req, res, pathname) {
@@ -185,12 +237,15 @@ const server = http.createServer(async (req, res) => {
   }
 
   if (pathname === '/sitemap.xml') {
-    const base = `http://${req.headers.host}`;
+    // favoritos.html fica de fora: é uma lista pessoal (localStorage de
+    // quem visita), sem conteúdo único por URL — não tem valor para indexar
+    // e já leva "noindex" (ver frontend/site/favoritos.html).
+    const base = getBaseUrl(req);
     const rows = db.prepare("SELECT id, updated_at FROM imoveis WHERE status = 'disponivel'").all();
-    const paginasEstaticas = ['/', '/busca.html', '/favoritos.html'];
     const urls = [
-      ...paginasEstaticas.map((p) => `<url><loc>${base}${p}</loc></url>`),
-      ...rows.map((r) => `<url><loc>${base}/imovel.html?id=${r.id}</loc><lastmod>${(r.updated_at || '').slice(0, 10)}</lastmod></url>`),
+      `<url><loc>${base}/</loc><changefreq>daily</changefreq><priority>1.0</priority></url>`,
+      `<url><loc>${base}/busca.html</loc><changefreq>daily</changefreq><priority>0.9</priority></url>`,
+      ...rows.map((r) => `<url><loc>${base}/imovel.html?id=${r.id}</loc><lastmod>${(r.updated_at || '').slice(0, 10)}</lastmod><changefreq>weekly</changefreq><priority>0.8</priority></url>`),
     ];
     const xml = `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n${urls.join('\n')}\n</urlset>`;
     res.writeHead(200, { 'Content-Type': 'application/xml; charset=utf-8' });
@@ -225,6 +280,10 @@ const server = http.createServer(async (req, res) => {
       sendJson(res, 500, { error: 'Erro interno do servidor' });
     }
     return;
+  }
+
+  if (pathname === '/imovel.html' || pathname === '/busca.html') {
+    return servePaginaComSeo(req, res, pathname, query);
   }
 
   return serveStatic(req, res, pathname);

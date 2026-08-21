@@ -121,6 +121,31 @@ function clearToken() {
   try { localStorage.removeItem('malb_admin_token'); } catch {}
 }
 
+/* Botão de mostrar/ocultar senha — usado no login e no cadastro de corretor
+   (aba Equipe). Basta envolver o <input type="password"> numa <div
+   class="campo-senha"> com um <button data-toggle-senha="id-do-input">
+   dentro; esta função liga o clique em todos os botões desse tipo achados
+   no escopo dado (chamar de novo é seguro, não liga duas vezes o mesmo). */
+const ICONE_OLHO = '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7-11-7-11-7z"/><circle cx="12" cy="12" r="3"/></svg>';
+const ICONE_OLHO_FECHADO = '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17.94 17.94A10.94 10.94 0 0 1 12 20C5 20 1 12 1 12a20.4 20.4 0 0 1 4.22-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a20.4 20.4 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></svg>';
+
+function ligarTogglesSenha(escopo = document) {
+  escopo.querySelectorAll('[data-toggle-senha]').forEach((btn) => {
+    if (btn.dataset.ligado) return;
+    const input = document.getElementById(btn.dataset.toggleSenha);
+    if (!input) return;
+    btn.dataset.ligado = '1';
+    btn.innerHTML = ICONE_OLHO;
+    btn.setAttribute('aria-label', 'Mostrar senha');
+    btn.addEventListener('click', () => {
+      const vaiMostrar = input.type === 'password';
+      input.type = vaiMostrar ? 'text' : 'password';
+      btn.innerHTML = vaiMostrar ? ICONE_OLHO_FECHADO : ICONE_OLHO;
+      btn.setAttribute('aria-label', vaiMostrar ? 'Ocultar senha' : 'Mostrar senha');
+    });
+  });
+}
+
 /* Favoritos: guardados só no navegador de quem está visitando (localStorage),
    sem precisar de login. Cada visitante tem sua própria lista. */
 const FAVORITOS_KEY = 'malb_favoritos';

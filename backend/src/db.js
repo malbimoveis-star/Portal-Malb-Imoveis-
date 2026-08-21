@@ -17,12 +17,18 @@ const path = require('node:path');
 const fs = require('node:fs');
 const crypto = require('node:crypto');
 const { DatabaseSync } = require('node:sqlite');
+const { config } = require('./config');
 
 const DATA_DIR = path.join(__dirname, '..', 'data');
-const DB_PATH = path.join(DATA_DIR, 'malb.db');
+// Fase 6: DB_PATH pode ser sobrescrito por variável de ambiente (ex: em Docker,
+// apontando para o volume persistente montado em /data). Sem essa variável,
+// o comportamento é idêntico ao das Fases 2-5: backend/data/malb.db.
+const DB_PATH = config.dbPath || path.join(DATA_DIR, 'malb.db');
 const SEED_PATH = path.join(DATA_DIR, 'seed-imoveis.json');
 
 if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true });
+const dbDir = path.dirname(DB_PATH);
+if (!fs.existsSync(dbDir)) fs.mkdirSync(dbDir, { recursive: true });
 
 const db = new DatabaseSync(DB_PATH);
 db.exec('PRAGMA journal_mode = WAL;');
@@ -194,4 +200,4 @@ function seedIfEmpty() {
 
 seedIfEmpty();
 
-module.exports = { db, hashPassword };
+module.exports = { db, hashPassword, DB_PATH };

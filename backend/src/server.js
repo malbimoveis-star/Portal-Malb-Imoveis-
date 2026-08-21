@@ -16,6 +16,10 @@
  * Node, porque o ambiente onde ele foi escrito não tem acesso ao registro do
  * npm para instalar pacotes. Migrar para NestJS/Prisma depois é uma troca de
  * camada, não uma reescrita — as rotas e o schema já estão desenhados para isso.
+ *
+ * Fase 6 (hardening de produção): variáveis de ambiente (ver `.env.example`),
+ * cabeçalhos de segurança, rate limiting nos endpoints públicos mais sensíveis
+ * e desligamento gracioso — ver `src/config.js` e `src/security.js`.
  */
 
 const http = require('node:http');
@@ -23,6 +27,8 @@ const fs = require('node:fs');
 const path = require('node:path');
 const { URL } = require('node:url');
 
+const { config } = require('./config');
+const { applySecurityHeaders, getClientIp, checkRateLimit, iniciarLimpezaPeriodica } = require('./security');
 const { Router } = require('./router');
 const { requireAuth } = require('./auth');
 const { registerImoveisRoutes } = require('./routes/imoveis');
@@ -32,7 +38,7 @@ const { registerParceirosRoutes } = require('./routes/parceiros');
 const { registerUsuariosRoutes } = require('./routes/usuarios');
 const { db } = require('./db');
 
-const PORT = process.env.PORT || 3001;
+const PORT = config.port;
 const STATIC_ROOT = path.join(__dirname, '..', '..', 'frontend', 'site');
 
 const MIME = {
@@ -131,18 +137,51 @@ async function serveStatic(req, res, pathname) {
 }
 
 const server = http.createServer(async (req, res) => {
+  const inicio = Date.now();
   const url = new URL(req.url, `http://${req.headers.host}`);
   const pathname = url.pathname;
   const query = Object.fromEntries(url.searchParams.entries());
 
-  // CORS permissivo — útil em desenvolvimento (ex: abrir o front noutra porta/origem)
-  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.on('finish', () => {
+    const ms = Date.now() - inicio;
+    console.log(`${req.method} ${pathname} ${res.statusCode} ${ms}ms`);
+  });
+
+  applySecurityHeaders(req, res);
+
+  // CORS: em desenvolvimento (config.allowedOrigin padrão "*") permanece
+  // permissivo, como nas Fases 2-5. Em produção, defina ALLOWED_ORIGIN no
+  // .env com o domínio real do site para restringir quem pode chamar a API
+  // a partir do navegador.
+  res.setHeader('Access-Control-Allow-Origin', config.allowedOrigin);
   res.setHeader('Access-Control-Allow-Methods', 'GET,POST,PUT,DELETE,OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Api-Key');
+  if (config.allowedOrigin !== '*') res.setHeader('Vary', 'Origin');
   if (req.method === 'OPTIONS') { res.writeHead(204); return res.end(); }
 
   if (pathname === '/api/health') {
     return sendJson(res, 200, { status: 'ok', timestamp: new Date().toISOString() });
+  }
+
+  // Rate limiting — só nos dois endpoints públicos (sem autenticação) mais
+  // expostos a abuso automatizado: tentativas de login e envio em massa de
+  // leads falsos. As demais rotas exigem sessão ou chave de API de parceiro,
+  // o que já limita bastante o abuso anônimo.
+  if (req.method === 'POST' && pathname === '/api/auth/login') {
+    const ip = getClientIp(req);
+    const { permitido, retryAfterSegundos } = checkRateLimit('login', ip, config.rateLimit.login);
+    if (!permitido) {
+      res.setHeader('Retry-After', String(retryAfterSegundos));
+      return sendJson(res, 429, { error: 'Muitas tentativas de login. Tente novamente em alguns minutos.' });
+    }
+  }
+  if (req.method === 'POST' && pathname === '/api/leads') {
+    const ip = getClientIp(req);
+    const { permitido, retryAfterSegundos } = checkRateLimit('lead', ip, config.rateLimit.leadPublico);
+    if (!permitido) {
+      res.setHeader('Retry-After', String(retryAfterSegundos));
+      return sendJson(res, 429, { error: 'Muitos envios em pouco tempo. Tente novamente mais tarde.' });
+    }
   }
 
   if (pathname === '/sitemap.xml') {
@@ -194,4 +233,32 @@ const server = http.createServer(async (req, res) => {
 server.listen(PORT, () => {
   console.log(`Portal Malb Imóveis — API + site rodando em http://localhost:${PORT}`);
   console.log(`Endpoints da API em http://localhost:${PORT}/api/ (ver docs/API.md)`);
+  console.log(`Ambiente: ${config.nodeEnv}${config.trustProxy ? ' (atrás de proxy reverso)' : ''}`);
 });
+
+iniciarLimpezaPeriodica();
+
+// Desligamento gracioso: para de aceitar conexões novas, deixa as em
+// andamento terminarem, e só então fecha o banco — evita cortar uma escrita
+// no meio (ex: um lead sendo salvo) quando o processo é reiniciado/parado
+// em produção (Docker, systemd, deploy de uma nova versão etc).
+function desligar(sinal) {
+  console.log(`\nRecebido ${sinal}, encerrando graciosamente...`);
+  server.close(() => {
+    try {
+      db.close();
+    } catch (err) {
+      // já fechado ou nunca chegou a abrir — sem problema no encerramento
+    }
+    console.log('Servidor encerrado.');
+    process.exit(0);
+  });
+  // Se alguma conexão não fechar sozinha, força a saída depois de 10s em vez
+  // de deixar o processo pendurado indefinidamente.
+  setTimeout(() => process.exit(1), 10_000).unref();
+}
+
+process.on('SIGTERM', () => desligar('SIGTERM'));
+process.on('SIGINT', () => desligar('SIGINT'));
+
+module.exports = { server };

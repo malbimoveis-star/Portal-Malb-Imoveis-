@@ -23,6 +23,7 @@
   <div class="chip-row" style="margin-bottom:1.2rem;">
     <button class="chip active" data-tab="imoveis">Imóveis</button>
     <button class="chip" data-tab="leads">Leads</button>
+    <button class="chip" data-tab="parceiros">Parceiros (CRMs)</button>
   </div>
 
   <section id="tab-imoveis">
@@ -33,9 +34,9 @@
     <div class="table-wrap">
       <table>
         <thead><tr>
-          <th>Foto</th><th>Título</th><th>Tipo</th><th>Finalidade</th><th>Preço</th><th>Status</th><th>Ações</th>
+          <th>Foto</th><th>Título</th><th>Tipo</th><th>Finalidade</th><th>Preço</th><th>Origem</th><th>Status</th><th>Ações</th>
         </tr></thead>
-        <tbody id="tbody-imoveis"><tr><td colspan="7">Carregando…</td></tr></tbody>
+        <tbody id="tbody-imoveis"><tr><td colspan="8">Carregando…</td></tr></tbody>
       </table>
     </div>
   </section>
@@ -50,6 +51,26 @@
           <th>Nome</th><th>Contato</th><th>Imóvel</th><th>Mensagem</th><th>Status</th><th>Recebido em</th>
         </tr></thead>
         <tbody id="tbody-leads"><tr><td colspan="6">Carregando…</td></tr></tbody>
+      </table>
+    </div>
+  </section>
+
+  <section id="tab-parceiros" style="display:none;">
+    <p style="color:var(--ink-faint);font-size:.85rem;margin:0 0 1rem;max-width:60ch;">
+      Parceiros são CRMs de outras imobiliárias que trocam dados de imóveis com o Portal Malb via API própria (Fase 4).
+      Cada parceiro recebe uma chave de API para importar/exportar imóveis e uma URL de webhook opcional para receber
+      avisos de leads e mudanças de status em tempo real. Veja a documentação completa em <a href="../docs.html" target="_blank">/docs</a>.
+    </p>
+    <div class="admin-topbar">
+      <span class="count" id="contagem-parceiros"></span>
+      <button class="btn btn-primary" id="btn-novo-parceiro">+ Novo parceiro</button>
+    </div>
+    <div class="table-wrap">
+      <table>
+        <thead><tr>
+          <th>Nome</th><th>Chave (prefixo)</th><th>Webhook</th><th>Imóveis importados</th><th>Status</th><th>Ações</th>
+        </tr></thead>
+        <tbody id="tbody-parceiros"><tr><td colspan="6">Carregando…</td></tr></tbody>
       </table>
     </div>
   </section>
@@ -145,6 +166,64 @@
   </div>
 </div>
 
+<div class="modal-backdrop" id="modal-parceiro-backdrop">
+  <div class="modal">
+    <h3 id="modal-parceiro-titulo">Novo parceiro</h3>
+    <form class="form-stack" id="form-parceiro">
+      <input type="hidden" id="p-id">
+      <div class="field-grid">
+        <div class="field span2">
+          <label>Nome do parceiro (ex: nome do CRM ou da imobiliária)</label>
+          <input type="text" id="p-nome" required>
+        </div>
+        <div class="field span2">
+          <label>URL do webhook (opcional — para receber leads e mudanças de status em tempo real)</label>
+          <input type="text" id="p-webhook" placeholder="https://crm-do-parceiro.com/webhooks/malb">
+        </div>
+        <div class="field span2" id="p-ativo-campo" style="display:none;">
+          <label style="display:flex;align-items:center;gap:.5rem;font-weight:400;">
+            <input type="checkbox" id="p-ativo" style="width:auto;"> Parceiro ativo (desmarque para suspender a chave sem excluir)
+          </label>
+        </div>
+      </div>
+      <div style="display:flex;gap:.6rem;justify-content:flex-end;margin-top:.6rem;">
+        <button type="button" class="btn btn-ghost" id="btn-parceiro-cancelar">Cancelar</button>
+        <button type="submit" class="btn btn-primary" id="btn-parceiro-salvar">Salvar</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<div class="modal-backdrop" id="modal-chave-backdrop">
+  <div class="modal">
+    <h3>Chave de API gerada</h3>
+    <p style="color:var(--ink-faint);font-size:.85rem;">
+      Copie e envie esta chave ao parceiro agora — por segurança, ela não pode ser recuperada depois. Se for perdida,
+      gere uma nova (a antiga para de funcionar).
+    </p>
+    <div class="chave-box" id="chave-gerada"></div>
+    <button type="button" class="btn btn-ghost" id="btn-copiar-chave" style="margin-top:.6rem;">Copiar chave</button>
+    <div style="display:flex;justify-content:flex-end;margin-top:1.2rem;">
+      <button type="button" class="btn btn-primary" id="btn-fechar-chave">Entendi, já copiei</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-backdrop" id="modal-entregas-backdrop">
+  <div class="modal">
+    <h3>Últimas entregas de webhook</h3>
+    <div class="table-wrap" style="margin-top:.8rem;">
+      <table>
+        <thead><tr><th>Evento</th><th>Resultado</th><th>Quando</th></tr></thead>
+        <tbody id="tbody-entregas"><tr><td colspan="3">Carregando…</td></tr></tbody>
+      </table>
+    </div>
+    <div style="display:flex;justify-content:flex-end;margin-top:1.2rem;">
+      <button type="button" class="btn btn-ghost" id="btn-fechar-entregas">Fechar</button>
+    </div>
+  </div>
+</div>
+
 <script src="../assets/app.js"></script>
 <script>
 document.getElementById('topbar').innerHTML = topbarHTML('', '../');
@@ -179,6 +258,8 @@ document.querySelectorAll('[data-tab]').forEach(btn => {
     const tab = btn.dataset.tab;
     document.getElementById('tab-imoveis').style.display = tab === 'imoveis' ? '' : 'none';
     document.getElementById('tab-leads').style.display = tab === 'leads' ? '' : 'none';
+    document.getElementById('tab-parceiros').style.display = tab === 'parceiros' ? '' : 'none';
+    if (tab === 'parceiros') carregarParceiros();
   });
 });
 
@@ -194,6 +275,7 @@ async function carregarImoveis() {
         <td>${im.tipo}</td>
         <td>${im.finalidade === 'venda' ? 'Venda' : 'Aluguel'}</td>
         <td class="price">${fmtPreco(im.preco, im.finalidade)}</td>
+        <td>${im.origem === 'parceiro' ? '<span class="origem-pill">via parceiro</span>' : '<span style="color:var(--ink-faint);font-size:.8rem;">própria</span>'}</td>
         <td><span class="status-pill ${im.status}">${im.status}</span></td>
         <td style="display:flex;gap:.4rem;">
           <button class="btn btn-ghost" data-editar="${im.id}">Editar</button>
@@ -204,7 +286,7 @@ async function carregarImoveis() {
     document.querySelectorAll('[data-editar]').forEach(b => b.addEventListener('click', () => abrirModal(Number(b.dataset.editar))));
     document.querySelectorAll('[data-excluir]').forEach(b => b.addEventListener('click', () => excluirImovel(Number(b.dataset.excluir))));
   } catch (err) {
-    document.getElementById('tbody-imoveis').innerHTML = `<tr><td colspan="7" style="color:var(--danger);">Erro ao carregar: ${err.message}</td></tr>`;
+    document.getElementById('tbody-imoveis').innerHTML = `<tr><td colspan="8" style="color:var(--danger);">Erro ao carregar: ${err.message}</td></tr>`;
   }
 }
 
@@ -332,6 +414,150 @@ async function excluirImovel(id) {
     showToast('Erro ao excluir: ' + err.message);
   }
 }
+
+// ---------------------------------------------------------------------
+// Parceiros (Fase 4 — CRMs integrados via API)
+// ---------------------------------------------------------------------
+
+let parceirosCache = [];
+
+async function carregarParceiros() {
+  try {
+    const resp = await api('/parceiros', { auth: true });
+    parceirosCache = resp.data;
+    document.getElementById('contagem-parceiros').textContent = `${resp.total} parceiro${resp.total === 1 ? '' : 's'}`;
+    document.getElementById('tbody-parceiros').innerHTML = resp.data.length ? resp.data.map(p => `
+      <tr>
+        <td>${p.nome}</td>
+        <td><code>${p.chavePrefixo}…</code></td>
+        <td>${p.webhookUrl ? `<span title="${p.webhookUrl}">${p.webhookUrl.length > 30 ? p.webhookUrl.slice(0, 30) + '…' : p.webhookUrl}</span>` : '<span style="color:var(--ink-faint);">não configurado</span>'}</td>
+        <td>${p.imoveisImportados}</td>
+        <td><span class="status-pill ${p.ativo ? 'disponivel' : 'vendido'}">${p.ativo ? 'ativo' : 'suspenso'}</span></td>
+        <td style="display:flex;gap:.4rem;flex-wrap:wrap;">
+          <button class="btn btn-ghost" data-editar-parceiro="${p.id}">Editar</button>
+          <button class="btn btn-ghost" data-regenerar="${p.id}">Nova chave</button>
+          <button class="btn btn-ghost" data-entregas="${p.id}">Entregas</button>
+          <button class="btn btn-danger" data-excluir-parceiro="${p.id}">Excluir</button>
+        </td>
+      </tr>
+    `).join('') : '<tr><td colspan="6" style="color:var(--ink-faint);">Nenhum parceiro cadastrado ainda.</td></tr>';
+
+    document.querySelectorAll('[data-editar-parceiro]').forEach(b => b.addEventListener('click', () => abrirModalParceiro(Number(b.dataset.editarParceiro))));
+    document.querySelectorAll('[data-excluir-parceiro]').forEach(b => b.addEventListener('click', () => excluirParceiro(Number(b.dataset.excluirParceiro))));
+    document.querySelectorAll('[data-regenerar]').forEach(b => b.addEventListener('click', () => regenerarChave(Number(b.dataset.regenerar))));
+    document.querySelectorAll('[data-entregas]').forEach(b => b.addEventListener('click', () => verEntregas(Number(b.dataset.entregas))));
+  } catch (err) {
+    document.getElementById('tbody-parceiros').innerHTML = `<tr><td colspan="6" style="color:var(--danger);">Erro ao carregar: ${err.message}</td></tr>`;
+  }
+}
+
+function abrirModalParceiro(id) {
+  const form = document.getElementById('form-parceiro');
+  form.reset();
+  document.getElementById('p-id').value = '';
+  document.getElementById('modal-parceiro-titulo').textContent = id ? 'Editar parceiro' : 'Novo parceiro';
+  document.getElementById('p-ativo-campo').style.display = id ? '' : 'none';
+  if (id) {
+    const p = parceirosCache.find(x => x.id === id);
+    if (p) {
+      document.getElementById('p-id').value = p.id;
+      document.getElementById('p-nome').value = p.nome;
+      document.getElementById('p-webhook').value = p.webhookUrl || '';
+      document.getElementById('p-ativo').checked = p.ativo;
+    }
+  }
+  document.getElementById('modal-parceiro-backdrop').classList.add('show');
+}
+function fecharModalParceiro() { document.getElementById('modal-parceiro-backdrop').classList.remove('show'); }
+
+document.getElementById('btn-novo-parceiro').addEventListener('click', () => abrirModalParceiro(null));
+document.getElementById('btn-parceiro-cancelar').addEventListener('click', fecharModalParceiro);
+document.getElementById('modal-parceiro-backdrop').addEventListener('click', (e) => { if (e.target.id === 'modal-parceiro-backdrop') fecharModalParceiro(); });
+
+document.getElementById('form-parceiro').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const id = document.getElementById('p-id').value;
+  const payload = {
+    nome: document.getElementById('p-nome').value,
+    webhookUrl: document.getElementById('p-webhook').value.trim() || null,
+  };
+  if (id) payload.ativo = document.getElementById('p-ativo').checked;
+
+  const btn = document.getElementById('btn-parceiro-salvar');
+  btn.disabled = true; btn.textContent = 'Salvando…';
+  try {
+    if (id) {
+      await api('/parceiros/' + id, { method: 'PUT', auth: true, body: payload });
+      showToast('Parceiro atualizado.');
+      fecharModalParceiro();
+      carregarParceiros();
+    } else {
+      const resp = await api('/parceiros', { method: 'POST', auth: true, body: payload });
+      fecharModalParceiro();
+      carregarParceiros();
+      mostrarChaveGerada(resp.data.chaveApi);
+    }
+  } catch (err) {
+    showToast('Erro ao salvar: ' + err.message);
+  } finally {
+    btn.disabled = false; btn.textContent = 'Salvar';
+  }
+});
+
+function mostrarChaveGerada(chave) {
+  document.getElementById('chave-gerada').textContent = chave;
+  document.getElementById('modal-chave-backdrop').classList.add('show');
+}
+document.getElementById('btn-fechar-chave').addEventListener('click', () => document.getElementById('modal-chave-backdrop').classList.remove('show'));
+document.getElementById('btn-copiar-chave').addEventListener('click', async () => {
+  const chave = document.getElementById('chave-gerada').textContent;
+  try {
+    await navigator.clipboard.writeText(chave);
+    showToast('Chave copiada.');
+  } catch {
+    showToast('Não foi possível copiar automaticamente — selecione o texto manualmente.');
+  }
+});
+
+async function regenerarChave(id) {
+  if (!confirm('Gerar uma nova chave para este parceiro? A chave antiga para de funcionar imediatamente.')) return;
+  try {
+    const resp = await api('/parceiros/' + id + '/regenerar-chave', { method: 'POST', auth: true });
+    mostrarChaveGerada(resp.data.chaveApi);
+    carregarParceiros();
+  } catch (err) {
+    showToast('Erro ao gerar nova chave: ' + err.message);
+  }
+}
+
+async function excluirParceiro(id) {
+  if (!confirm('Excluir este parceiro? A chave de API dele para de funcionar e o histórico de entregas é apagado. Os imóveis que ele importou continuam no catálogo.')) return;
+  try {
+    await api('/parceiros/' + id, { method: 'DELETE', auth: true });
+    showToast('Parceiro excluído.');
+    carregarParceiros();
+  } catch (err) {
+    showToast('Erro ao excluir: ' + err.message);
+  }
+}
+
+async function verEntregas(id) {
+  document.getElementById('modal-entregas-backdrop').classList.add('show');
+  document.getElementById('tbody-entregas').innerHTML = '<tr><td colspan="3">Carregando…</td></tr>';
+  try {
+    const resp = await api('/parceiros/' + id + '/entregas', { auth: true });
+    document.getElementById('tbody-entregas').innerHTML = resp.data.length ? resp.data.map(en => `
+      <tr>
+        <td>${en.evento}</td>
+        <td>${en.sucesso ? `<span class="status-pill disponivel">ok (${en.statusHttp})</span>` : `<span class="status-pill vendido" title="${en.erro || ''}">falhou</span>`}</td>
+        <td>${new Date(en.createdAt.replace(' ', 'T') + 'Z').toLocaleString('pt-BR')}</td>
+      </tr>
+    `).join('') : '<tr><td colspan="3" style="color:var(--ink-faint);">Nenhuma entrega registrada ainda.</td></tr>';
+  } catch (err) {
+    document.getElementById('tbody-entregas').innerHTML = `<tr><td colspan="3" style="color:var(--danger);">Erro ao carregar: ${err.message}</td></tr>`;
+  }
+}
+document.getElementById('btn-fechar-entregas').addEventListener('click', () => document.getElementById('modal-entregas-backdrop').classList.remove('show'));
 
 init();
 </script>

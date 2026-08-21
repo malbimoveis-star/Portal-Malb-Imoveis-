@@ -213,6 +213,10 @@ tr:last-child td { border-bottom: none; }
 .field-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 0.7rem; }
 .field-grid .span2 { grid-column: 1/-1; }
 
+.origem-pill { padding: 0.2rem 0.6rem; border-radius: 999px; font-size: 0.72rem; font-weight: 700; background: var(--accent-soft); color: var(--accent); white-space: nowrap; }
+
+.chave-box { display: block; background: var(--surface-2); border: 1px solid var(--border-strong); border-radius: 10px; padding: 0.8rem 1rem; margin: 0.8rem 0; font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace; font-size: 0.85rem; color: var(--ink); word-break: break-all; user-select: all; }
+
 @media (max-width: 880px) {
   .searchbar { grid-template-columns: 1fr; }
   .stats-row { grid-template-columns: repeat(2,1fr); }

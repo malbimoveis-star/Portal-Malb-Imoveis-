@@ -30,7 +30,7 @@ O cronograma abaixo é organizado por **fases com entregas verificáveis**, não
 | **Fase 2 — Backend core** | Concluída (MVP) | API REST de imóveis (CRUD), autenticação, banco de dados real, painel do corretor — ver ressalva abaixo sobre a stack |
 | **Fase 3 — Busca e experiência pública** | Concluída (MVP) | Filtros avançados, mapa, favoritos, formulário de leads, SEO das páginas de imóvel — ver ressalva abaixo sobre o mapa |
 | **Fase 4 — API de integração com CRMs** | Concluída (MVP) | Import/export de imóveis (XML/JSON), webhooks, documentação da API (Swagger/OpenAPI), autenticação de parceiros — ver ressalvas abaixo |
-| **Fase 5 — CRM interno** | 2 semanas | Gestão de leads, funil de atendimento, atribuição a corretores |
+| **Fase 5 — CRM interno** | Concluída (MVP) | Gestão de leads, funil de atendimento, atribuição a corretores — ver detalhes abaixo |
 | **Fase 6 — Publicação** | 1–2 semanas | Testes, performance, domínio e deploy em produção |
 | **Fase 7 — Evolução contínua** | Contínua | Novas integrações, ajustes por feedback real de uso |
 
@@ -76,7 +76,16 @@ O cronograma abaixo é organizado por **fases com entregas verificáveis**, não
 **Ressalvas importantes sobre a Fase 4:**
 1. **Entrega de webhook é *best-effort*, sem fila de retry** — uma única tentativa, timeout de 5s. Se o endpoint do parceiro estiver fora do ar no momento do disparo, a entrega falha e não é reenviada automaticamente (fica registrada como falha no log, mas o parceiro pode perder o evento). Uma fila de retry com backoff é uma melhoria natural para uma fase futura, mas ficou fora do escopo deste MVP.
 2. **O formato XML do feed (`imoveis.xml`) é um formato próprio da Malb**, inspirado em convenções comuns de feeds do mercado imobiliário — não é uma cópia do schema proprietário de nenhum portal real, porque o ambiente onde este projeto foi construído não tinha acesso à internet para consultar a especificação exata de nenhum concorrente. Se um CRM parceiro específico exigir um formato diferente (ex: o schema de algum provedor de feeds já usado no mercado), isso é um ajuste direcionado, não uma reconstrução.
-3. **O Swagger UI em `/docs.html` carrega a biblioteca de um CDN público** (`cdnjs.cloudflare.com`), mesma lógica do mapa da Fase 3 — funciona com acesso normal à internet no navegador, mas não pôde ser testado visualmente nesta sessão pela mesma limitação de rede. A especificação em si (`openapi.yaml`) foi validada (YAML bem-formado, 16 rotas documentadas) e pode ser baixada e aberta em qualquer ferramenta OpenAPI mesmo se o Swagger UI não carregar.
+3. **O Swagger UI em `/docs.html` carrega a biblioteca de um CDN público** (`cdnjs.cloudflare.com`), mesma lógica do mapa da Fase 3 — funciona com acesso normal à internet no navegador, mas não pôde ser testado visualmente nesta sessão pela mesma limitação de rede. A especificação em si (`openapi.yaml`) foi validada (YAML bem-formado) e pode ser baixada e aberta em qualquer ferramenta OpenAPI mesmo se o Swagger UI não carregar.
+
+**Fase 5 — CRM interno (funil de atendimento e equipe):**
+- [x] Papel de usuário (`admin` | `corretor`) e usuário `ativo` — só admin cadastra/edita/exclui gente da equipe; um corretor comum só consulta a lista (precisa dela pra atribuir leads a si mesmo ou a um colega)
+- [x] Aba "Equipe" no painel: cadastrar corretor (nome, e-mail, CRECI, senha inicial, papel), editar, desativar (revoga sessões na hora) e excluir — com trava para nunca ficar sem nenhum admin ativo, e sem permitir autoexclusão
+- [x] Funil de atendimento: aba "Leads" virou um quadro Kanban com as quatro colunas de status (Novo, Em atendimento, Convertido, Perdido), com filtro por corretor responsável
+- [x] Atribuição de leads a um corretor específico (`corretorId`), com o card do funil mostrando o nome do responsável ou "Sem corretor"
+- [x] Histórico de atendimento por lead: linha do tempo com o recebimento do lead, toda mudança de status, toda atribuição/remoção de corretor (automáticas, atribuídas a quem fez a ação) e notas manuais que o corretor digita (ex: "liguei, vai confirmar até amanhã")
+- [x] Se o lead é de um imóvel de parceiro (Fase 4) e o status muda, o parceiro recebe um novo webhook `lead.atualizado` — mesmo padrão de assinatura HMAC dos outros eventos
+- [x] Testado de ponta a ponta: 24 verificações automatizadas cobrindo criação/edição/exclusão de usuários, a trava do último admin, bloqueio de acesso por papel (corretor não cria usuário) e por conta desativada (login bloqueado e sessão já aberta invalidada na hora), atribuição e mudança de status de lead com o histórico gerado corretamente, filtro por corretor, e o webhook `lead.atualizado` disparando e chegando assinado; a interface (quadro Kanban, modal do lead com linha do tempo, aba Equipe) foi testada visualmente e funcionalmente via Playwright, com screenshot conferido
 
 ## 5. Decisões pendentes (precisamos da sua confirmação)
 
@@ -89,8 +98,7 @@ O cronograma abaixo é organizado por **fases com entregas verificáveis**, não
 
 ## 6. Próximos passos sugeridos
 
-Com as Fases 2, 3 e 4 prontas, a ordem natural é:
+Com as Fases 2, 3, 4 e 5 prontas, a ordem natural é:
 
-1. Você testar o site, a busca, o painel do corretor e a aba Parceiros (CRMs) no ambiente local (`node backend/src/server.js` → `http://localhost:3001`), conferir se o mapa e o Swagger UI (`/docs.html`) carregam normalmente na sua conexão, e apontar o que precisa ajustar.
-2. Fase 5 — CRM interno mais completo (funil de atendimento, atribuição de leads a corretores).
-3. Fase 6 — migrar para a stack de produção (NestJS/Prisma/PostgreSQL/Next.js) e publicar de fato, o que depende das decisões 1, 2 e 6 acima.
+1. Você testar o site, a busca, o painel do corretor (funil de leads e aba Equipe) e a aba Parceiros (CRMs) no ambiente local (`node backend/src/server.js` → `http://localhost:3001`), conferir se o mapa e o Swagger UI (`/docs.html`) carregam normalmente na sua conexão, cadastrar os corretores de verdade da imobiliária (trocando a senha do usuário demo) e apontar o que precisa ajustar.
+2. Fase 6 — migrar para a stack de produção (NestJS/Prisma/PostgreSQL/Next.js) e publicar de fato, o que depende das decisões 1, 2 e 6 acima.

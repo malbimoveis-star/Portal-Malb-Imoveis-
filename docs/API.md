@@ -14,10 +14,12 @@ Todas as respostas são JSON. Erros seguem o formato `{ "error": "mensagem", "de
 ```
 ```json
 // resposta 200
-{ "data": { "token": "...", "user": { "id": 1, "nome": "...", "email": "...", "creci": "..." } } }
+{ "data": { "token": "...", "user": { "id": 1, "nome": "...", "email": "...", "creci": "...", "papel": "admin" } } }
 ```
 
 Use o token nas rotas protegidas: header `Authorization: Bearer <token>`. Sessões expiram em 7 dias ou até `POST /api/auth/logout`.
+
+Desde a Fase 5, cada usuário tem um `papel` (`admin` ou `corretor`) e um `ativo`. Um usuário desativado não consegue logar — e se for desativado enquanto já está logado, a sessão dele para de valer na próxima requisição (não precisa esperar o token de 7 dias expirar). Só `admin` pode gerenciar a equipe (ver **Equipe** abaixo); `corretor` pode ver a lista de colegas, atender leads e ver/editar imóveis normalmente.
 
 ## Imóveis
 
@@ -56,14 +58,41 @@ Remove um imóvel. Resposta `204` sem corpo.
 
 ## Leads
 
+O funil de atendimento (Fase 5) vive nestas rotas: todo lead tem um `status` (`novo` | `em_atendimento` | `convertido` | `perdido`) e pode ser atribuído a um `corretorId`. Cada mudança relevante — recebimento, troca de status, atribuição, e notas manuais do corretor — fica registrada na linha do tempo do lead (`lead_interacoes`), consultável em `GET /api/leads/:id/interacoes`.
+
 ### `POST /api/leads`
-Público — usado pelo formulário "Enviar interesse" na página do imóvel. Campos obrigatórios: `nome`, `contato`. Opcionais: `imovelId`, `mensagem`.
+Público — usado pelo formulário "Enviar interesse" na página do imóvel. Campos obrigatórios: `nome`, `contato`. Opcionais: `imovelId`, `mensagem`. Ao ser criado, o lead já ganha uma primeira entrada na timeline (`tipo: "sistema"`, "Lead recebido pelo site.").
 
 ### `GET /api/leads` 🔒
-Lista todos os leads recebidos, mais recentes primeiro.
+Lista leads, mais recentes primeiro. Filtros opcionais via query string: `status` (um dos quatro valores do funil) e `corretorId` (leads atribuídos a um corretor específico) — usados pelo funil Kanban do painel.
+
+### `GET /api/leads/:id` 🔒
+Detalhe de um lead. `404` se não existir.
 
 ### `PUT /api/leads/:id` 🔒
-Atualiza o `status` de um lead (`novo` | `em_atendimento` | `convertido` | `perdido`).
+Atualização parcial: aceita `status` e/ou `corretorId` (número para atribuir, `null` para remover a atribuição; campo omitido não mexe no valor atual). `corretorId` precisa ser de um usuário `ativo`, senão `400`. Cada mudança de `status` ou de `corretorId` é automaticamente registrada na timeline do lead, atribuída a quem fez a chamada (o `user` autenticado). Se o lead é de um imóvel de parceiro (Fase 4) e o `status` muda, o parceiro recebe um webhook `lead.atualizado` — ver **Webhooks** em Parceiros.
+
+### `GET /api/leads/:id/interacoes` 🔒
+Linha do tempo do lead, mais antiga primeiro: `{ "data": [ { "id", "leadId", "userId", "userNome", "tipo", "texto", "createdAt" } ], "total": N }`. `tipo` é um de `sistema` (lead recebido), `status` (mudança de status), `atribuicao` (corretor atribuído/removido) ou `nota` (anotação manual). `userNome` é `null` para entradas do sistema.
+
+### `POST /api/leads/:id/interacoes` 🔒
+Registra uma nota manual do corretor (ex: "liguei, vai confirmar até amanhã"). Corpo: `{ "texto": "..." }`. Sempre entra como `tipo: "nota"`, atribuída ao usuário autenticado.
+
+## Equipe (`/api/usuarios`) 🔒
+
+Gestão de quem tem login no painel — Fase 5. `GET` é liberado pra qualquer usuário autenticado (precisa disso pra montar o seletor de corretor ao atribuir um lead); `POST`, `PUT` e `DELETE` exigem `papel: "admin"` — um corretor comum recebe `403` se tentar.
+
+### `GET /api/usuarios` 🔒
+Lista a equipe: `{ "data": [ { "id", "nome", "email", "creci", "papel", "ativo", "createdAt" } ], "total": N }`. Nunca inclui hash de senha.
+
+### `POST /api/usuarios` 🔒 (admin)
+Cria um novo login. Corpo: `{ "nome", "email", "senha" (mín. 6 caracteres), "creci" (opcional), "papel" (opcional, `"corretor"` por padrão) }`. `409` se o e-mail já estiver em uso.
+
+### `PUT /api/usuarios/:id` 🔒 (admin)
+Atualização parcial: `nome`, `email`, `creci`, `papel`, `ativo`, `senha` (opcional — só troca se enviada). Desativar um usuário (`ativo: false`) derruba as sessões dele na hora. Há uma trava de segurança: não é possível rebaixar de `admin` para `corretor` nem desativar o **último** admin ativo do sistema — a chamada retorna `400` para proteger o painel de ficar sem ninguém com acesso total.
+
+### `DELETE /api/usuarios/:id` 🔒 (admin)
+Exclui o usuário. `400` se for o próprio usuário autenticado (não dá pra se autoexcluir) ou se for o último admin ativo — mesma trava do `PUT`. Leads atribuídos a esse usuário ficam sem corretor responsável (`corretorId: null`), não são apagados.
 
 ## Health check
 
@@ -134,6 +163,7 @@ Quando cadastra uma `webhookUrl`, o parceiro passa a receber `POST`s automático
 | Evento | Quando dispara | `dados` do payload |
 |---|---|---|
 | `lead.criado` | Alguém envia o formulário de interesse (`POST /api/leads`) para um imóvel com `origem=parceiro` do parceiro | O lead, mais `imovelReferenciaExterna` e `imovelTitulo` |
+| `lead.atualizado` | O corretor muda o `status` de um lead (`PUT /api/leads/:id`) sobre um imóvel `origem=parceiro` daquele parceiro — parte do funil de atendimento da Fase 5 | O lead completo, já com o novo `status`, mais `imovelReferenciaExterna` |
 | `imovel.atualizado` | O corretor muda o `status` de um imóvel `origem=parceiro` daquele parceiro, pelo painel | O imóvel completo, já com o novo `status` |
 | `teste` | O parceiro chama `POST /api/v1/parceiros/webhook-teste` | `{ "mensagem": "Disparo de teste do Portal Malb Imóveis" }` |
 

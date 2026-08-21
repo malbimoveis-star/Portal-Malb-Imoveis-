@@ -29,6 +29,12 @@ info:
     (`/api/v1/parceiros/imoveis.xml`) é um formato próprio do Portal Malb,
     inspirado em convenções comuns de feeds imobiliários — não é uma cópia do
     schema proprietário de nenhum portal real.
+
+    **Produção (Fase 6):** `POST /api/auth/login` e `POST /api/leads` (as
+    duas únicas rotas públicas sem autenticação) têm rate limiting por IP —
+    ao exceder o limite, respondem `429` com um cabeçalho `Retry-After`. Em
+    produção o CORS é restrito ao domínio configurado do site (em vez de
+    aberto, como em desenvolvimento).
   contact:
     name: Malb Imóveis
     email: malbimoveis@gmail.com

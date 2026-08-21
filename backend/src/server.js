@@ -28,6 +28,7 @@ const { requireAuth } = require('./auth');
 const { registerImoveisRoutes } = require('./routes/imoveis');
 const { registerLeadsRoutes } = require('./routes/leads');
 const { registerAuthRoutes } = require('./routes/auth');
+const { registerParceirosRoutes } = require('./routes/parceiros');
 const { db } = require('./db');
 
 const PORT = process.env.PORT || 3001;
@@ -43,12 +44,15 @@ const MIME = {
   '.jpg': 'image/jpeg',
   '.ico': 'image/x-icon',
   '.txt': 'text/plain; charset=utf-8',
+  '.yaml': 'text/yaml; charset=utf-8',
+  '.yml': 'text/yaml; charset=utf-8',
 };
 
 const router = new Router();
 registerImoveisRoutes(router);
 registerLeadsRoutes(router);
 registerAuthRoutes(router);
+registerParceirosRoutes(router);
 
 function sendJson(res, status, payload) {
   if (payload === null) {
@@ -61,6 +65,14 @@ function sendJson(res, status, payload) {
     'Content-Length': Buffer.byteLength(body),
   });
   res.end(body);
+}
+
+function sendXml(res, status, xml) {
+  res.writeHead(status, {
+    'Content-Type': 'application/xml; charset=utf-8',
+    'Content-Length': Buffer.byteLength(xml),
+  });
+  res.end(xml);
 }
 
 function readBody(req) {
@@ -161,7 +173,10 @@ const server = http.createServer(async (req, res) => {
     const authHeader = req.headers['authorization'] || '';
     const token = authHeader.startsWith('Bearer ') ? authHeader.slice(7) : null;
 
-    const wrappedRes = { json: (status, payload) => sendJson(res, status, payload) };
+    const wrappedRes = {
+      json: (status, payload) => sendJson(res, status, payload),
+      xml: (status, xml) => sendXml(res, status, xml),
+    };
     try {
       match.handler(req, wrappedRes, match.params, query, body, user, token);
     } catch (err) {

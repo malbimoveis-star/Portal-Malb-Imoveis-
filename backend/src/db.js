@@ -77,6 +77,27 @@ db.exec(`
     created_at TEXT NOT NULL DEFAULT (datetime('now')),
     expires_at TEXT NOT NULL
   );
+
+  CREATE TABLE IF NOT EXISTS parceiros (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    nome TEXT NOT NULL,
+    chave_hash TEXT NOT NULL UNIQUE,
+    chave_prefixo TEXT NOT NULL,
+    webhook_url TEXT,
+    webhook_secret TEXT NOT NULL,
+    ativo INTEGER NOT NULL DEFAULT 1,
+    created_at TEXT NOT NULL DEFAULT (datetime('now'))
+  );
+
+  CREATE TABLE IF NOT EXISTS webhook_entregas (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    parceiro_id INTEGER NOT NULL REFERENCES parceiros(id) ON DELETE CASCADE,
+    evento TEXT NOT NULL,
+    sucesso INTEGER NOT NULL,
+    status_http INTEGER,
+    erro TEXT,
+    created_at TEXT NOT NULL DEFAULT (datetime('now'))
+  );
 `);
 
 // Migração leve: adiciona colunas novas em bancos já existentes (criados antes
@@ -90,6 +111,9 @@ function garantirColuna(tabela, coluna, definicao) {
 }
 garantirColuna('imoveis', 'lat', 'REAL');
 garantirColuna('imoveis', 'lng', 'REAL');
+garantirColuna('imoveis', 'origem', "TEXT NOT NULL DEFAULT 'proprio'");
+garantirColuna('imoveis', 'parceiro_id', 'INTEGER REFERENCES parceiros(id) ON DELETE SET NULL');
+garantirColuna('imoveis', 'referencia_externa', 'TEXT');
 
 function hashPassword(password, salt = crypto.randomBytes(16).toString('hex')) {
   const hash = crypto.scryptSync(password, salt, 64).toString('hex');

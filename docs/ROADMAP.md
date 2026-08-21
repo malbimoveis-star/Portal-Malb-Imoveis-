@@ -41,7 +41,9 @@ O cronograma abaixo é organizado por **fases com entregas verificáveis**, não
 - [x] Estrutura inicial do repositório (`frontend/`, `backend/`, `infra/`, `docs/`)
 - [x] README com visão geral e stack proposta
 - [x] Este roadmap
-- [ ] Repositório publicado no GitHub (ver seção 6 — depende de uma ação sua)
+- [x] Repositório publicado no GitHub
+- [x] Protótipo navegável da Fase 1 (`frontend/prototipo.html`) — home, busca com filtros, página de imóvel, dados fictícios
+- [ ] Validação do protótipo com o cliente (visual, fluxo, prints de referência)
 
 ## 5. Decisões pendentes (precisamos da sua confirmação)
 

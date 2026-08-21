@@ -2,7 +2,7 @@
 
 Site público (busca, listagem, página de imóvel) e painel do corretor.
 
-**Status:** Fases 2, 3, 4 e 5 concluídas — site real conectado à API, com busca avançada, favoritos, mapa, SEO, o painel de integração com CRMs parceiros e o CRM interno (funil de leads e equipe).
+**Status:** Fases 2, 3, 4, 5 e 6 concluídas — site real conectado à API, com busca avançada, favoritos, mapa, SEO, o painel de integração com CRMs parceiros e o CRM interno (funil de leads e equipe). A Fase 6 não mudou nada aqui na interface: ela deixou o backend (`backend/`) pronto para produção — ver `backend/README.md` e `docs/DEPLOY.md`.
 
 ## `site/` — site real (Fases 2 a 5, conectado à API)
 

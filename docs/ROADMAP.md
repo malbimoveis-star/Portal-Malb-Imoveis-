@@ -43,14 +43,15 @@ O cronograma abaixo é organizado por **fases com entregas verificáveis**, não
 - [x] Este roadmap
 - [x] Repositório publicado no GitHub
 - [x] Protótipo navegável da Fase 1 (`frontend/prototipo.html`) — home, busca com filtros, página de imóvel, dados fictícios
-- [ ] Validação do protótipo com o cliente (visual, fluxo, prints de referência)
+- [x] Paleta de cores baseada na logo (azul/verde) e fotos ilustrativas por segmento de imóvel
+- [ ] Validação final do protótipo com o cliente (fluxo completo, algo faltando?)
 
 ## 5. Decisões pendentes (precisamos da sua confirmação)
 
 1. **Stack técnica** — confirmar ou ajustar a proposta em `README.md` (Next.js + NestJS + PostgreSQL).
 2. **Domínio** — qual será o domínio do portal (ex: `malbimoveis.com.br`)?
-3. **Identidade visual** — já existe logo/paleta de cores da Malb Imóveis, ou construímos uma nova?
-4. **Dados iniciais** — começar com imóveis de exemplo (mock) ou já existe uma planilha/CRM para importar?
+3. ~~**Identidade visual**~~ — ✅ definida: logo e paleta azul/verde da Malb já aplicadas ao protótipo.
+4. **Dados iniciais** — continuar com imóveis de exemplo (mock) até você ter os reais, ou já existe uma planilha/CRM para importar agora?
 5. **CRM de referência para a API** — se você já usa algum CRM imobiliário hoje (ex: Vista, União, JetImóveis), isso define o formato de importação/exportação prioritário.
 6. **Hospedagem/deploy** — usar um provedor já contratado ou seguir a recomendação (Vercel para o frontend + Railway/AWS para backend e banco)?
 

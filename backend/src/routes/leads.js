@@ -1,6 +1,7 @@
 'use strict';
 
 const { db } = require('../db');
+const { dispararWebhook } = require('../webhooks');
 
 function rowToLead(row) {
   return {
@@ -25,6 +26,23 @@ function registerLeadsRoutes(router) {
       VALUES (?, ?, ?, ?)
     `).run(body.imovelId || null, body.nome, body.contato, body.mensagem || '');
     const row = db.prepare('SELECT * FROM leads WHERE id = ?').get(info.lastInsertRowid);
+
+    // Se o lead é sobre um imóvel importado por um parceiro (Fase 4), avisa
+    // o webhook dele — o CRM do parceiro recebe o lead quase em tempo real.
+    if (row.imovel_id) {
+      const imovel = db.prepare('SELECT * FROM imoveis WHERE id = ?').get(row.imovel_id);
+      if (imovel && imovel.parceiro_id) {
+        const parceiro = db.prepare('SELECT * FROM parceiros WHERE id = ?').get(imovel.parceiro_id);
+        if (parceiro) {
+          dispararWebhook(parceiro, 'lead.criado', {
+            ...rowToLead(row),
+            imovelReferenciaExterna: imovel.referencia_externa,
+            imovelTitulo: imovel.titulo,
+          });
+        }
+      }
+    }
+
     res.json(201, { data: rowToLead(row) });
   });
 

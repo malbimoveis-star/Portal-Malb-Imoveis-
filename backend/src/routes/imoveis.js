@@ -1,6 +1,7 @@
 'use strict';
 
 const { db } = require('../db');
+const { dispararWebhook } = require('../webhooks');
 
 function rowToImovel(row) {
   return {
@@ -21,6 +22,9 @@ function rowToImovel(row) {
     lat: row.lat,
     lng: row.lng,
     status: row.status,
+    origem: row.origem || 'proprio',
+    parceiroId: row.parceiro_id,
+    referenciaExterna: row.referencia_externa,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   };
@@ -130,6 +134,15 @@ function registerImoveisRoutes(router) {
       merged.status || 'disponivel', Number(params.id)
     );
     const row = db.prepare('SELECT * FROM imoveis WHERE id = ?').get(Number(params.id));
+
+    // Se o imóvel veio de um parceiro (Fase 4) e o status mudou, avisa o
+    // webhook dele — assim o CRM do parceiro fica sincronizado sem precisar
+    // ficar consultando a API o tempo todo.
+    if (row.parceiro_id && existing.status !== row.status) {
+      const parceiro = db.prepare('SELECT * FROM parceiros WHERE id = ?').get(row.parceiro_id);
+      if (parceiro) dispararWebhook(parceiro, 'imovel.atualizado', rowToImovel(row));
+    }
+
     res.json(200, { data: rowToImovel(row) });
   });
 
@@ -141,4 +154,4 @@ function registerImoveisRoutes(router) {
   });
 }
 
-module.exports = { registerImoveisRoutes };
+module.exports = { registerImoveisRoutes, rowToImovel, validarPayload };

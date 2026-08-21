@@ -23,6 +23,7 @@
   <div class="chip-row" style="margin-bottom:1.2rem;">
     <button class="chip active" data-tab="imoveis">Imóveis</button>
     <button class="chip" data-tab="leads">Leads</button>
+    <button class="chip" data-tab="equipe">Equipe</button>
     <button class="chip" data-tab="parceiros">Parceiros (CRMs)</button>
   </div>
 
@@ -44,13 +45,30 @@
   <section id="tab-leads" style="display:none;">
     <div class="admin-topbar">
       <span class="count" id="contagem-leads"></span>
+      <select id="filtro-corretor-funil" style="border:1px solid var(--border-strong);border-radius:8px;padding:.4rem .6rem;background:var(--surface);color:var(--ink);font-size:.85rem;">
+        <option value="">Todos os corretores</option>
+      </select>
+    </div>
+    <div class="funil-board" id="funil-board">
+      <p style="color:var(--ink-faint);">Carregando…</p>
+    </div>
+  </section>
+
+  <section id="tab-equipe" style="display:none;">
+    <p style="color:var(--ink-faint);font-size:.85rem;margin:0 0 1rem;max-width:60ch;">
+      Quem tem login no painel. Administradores podem cadastrar e gerenciar corretores; um corretor comum só
+      consegue ver a equipe (para atribuir leads), não editar ninguém.
+    </p>
+    <div class="admin-topbar">
+      <span class="count" id="contagem-equipe"></span>
+      <button class="btn btn-primary" id="btn-novo-usuario" style="display:none;">+ Novo usuário</button>
     </div>
     <div class="table-wrap">
       <table>
         <thead><tr>
-          <th>Nome</th><th>Contato</th><th>Imóvel</th><th>Mensagem</th><th>Status</th><th>Recebido em</th>
+          <th>Nome</th><th>E-mail</th><th>CRECI</th><th>Papel</th><th>Status</th><th>Ações</th>
         </tr></thead>
-        <tbody id="tbody-leads"><tr><td colspan="6">Carregando…</td></tr></tbody>
+        <tbody id="tbody-equipe"><tr><td colspan="6">Carregando…</td></tr></tbody>
       </table>
     </div>
   </section>
@@ -224,6 +242,86 @@
   </div>
 </div>
 
+<div class="modal-backdrop" id="modal-lead-backdrop">
+  <div class="modal" style="max-width:640px;">
+    <h3 id="lead-titulo">Lead</h3>
+    <div class="lead-info" id="lead-info"></div>
+
+    <div class="field-grid" style="margin-top:1rem;">
+      <div class="field">
+        <label>Status</label>
+        <select id="lead-status">
+          <option value="novo">Novo</option>
+          <option value="em_atendimento">Em atendimento</option>
+          <option value="convertido">Convertido</option>
+          <option value="perdido">Perdido</option>
+        </select>
+      </div>
+      <div class="field">
+        <label>Corretor responsável</label>
+        <select id="lead-corretor">
+          <option value="">Sem atribuição</option>
+        </select>
+      </div>
+    </div>
+
+    <h4 style="margin-top:1.4rem;font-size:.95rem;">Histórico de atendimento</h4>
+    <div class="timeline" id="lead-timeline"><p style="color:var(--ink-faint);font-size:.85rem;">Carregando…</p></div>
+
+    <form id="form-nota-lead" style="display:flex;gap:.6rem;margin-top:.8rem;">
+      <textarea id="lead-nova-nota" placeholder="Anotar uma ligação, visita, retorno…" rows="2" style="flex:1;resize:vertical;"></textarea>
+      <button type="submit" class="btn btn-primary" style="align-self:flex-end;">Registrar</button>
+    </form>
+
+    <div style="display:flex;justify-content:flex-end;margin-top:1.2rem;">
+      <button type="button" class="btn btn-ghost" id="btn-fechar-lead">Fechar</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-backdrop" id="modal-usuario-backdrop">
+  <div class="modal">
+    <h3 id="modal-usuario-titulo">Novo usuário</h3>
+    <form class="form-stack" id="form-usuario">
+      <input type="hidden" id="u-id">
+      <div class="field-grid">
+        <div class="field span2">
+          <label>Nome</label>
+          <input type="text" id="u-nome" required>
+        </div>
+        <div class="field span2">
+          <label>E-mail (login)</label>
+          <input type="email" id="u-email" required>
+        </div>
+        <div class="field">
+          <label>CRECI (opcional)</label>
+          <input type="text" id="u-creci">
+        </div>
+        <div class="field">
+          <label>Papel</label>
+          <select id="u-papel">
+            <option value="corretor">Corretor</option>
+            <option value="admin">Administrador</option>
+          </select>
+        </div>
+        <div class="field span2">
+          <label id="u-senha-label">Senha</label>
+          <input type="password" id="u-senha" minlength="6" placeholder="Mínimo 6 caracteres">
+        </div>
+        <div class="field span2" id="u-ativo-campo" style="display:none;">
+          <label style="display:flex;align-items:center;gap:.5rem;font-weight:400;">
+            <input type="checkbox" id="u-ativo" style="width:auto;"> Usuário ativo (desmarque para revogar o acesso sem excluir)
+          </label>
+        </div>
+      </div>
+      <div style="display:flex;gap:.6rem;justify-content:flex-end;margin-top:.6rem;">
+        <button type="button" class="btn btn-ghost" id="btn-usuario-cancelar">Cancelar</button>
+        <button type="submit" class="btn btn-primary" id="btn-usuario-salvar">Salvar</button>
+      </div>
+    </form>
+  </div>
+</div>
+
 <script src="../assets/app.js"></script>
 <script>
 document.getElementById('topbar').innerHTML = topbarHTML('', '../');
@@ -231,17 +329,26 @@ document.getElementById('topbar').innerHTML = topbarHTML('', '../');
 if (!getToken()) window.location.href = 'login.html';
 
 let imoveisCache = [];
+let usuariosCache = [];
+let meId = null;
+let mePapel = null;
 
 async function init() {
   try {
     const me = await api('/auth/me', { auth: true });
     document.getElementById('user-info').textContent = `${me.data.nome} · ${me.data.email}`;
+    meId = me.data.id;
+    mePapel = me.data.papel;
+    if (mePapel === 'admin') document.getElementById('btn-novo-usuario').style.display = '';
   } catch (err) {
     clearToken();
     window.location.href = 'login.html';
     return;
   }
   carregarImoveis();
+  // A equipe é carregada já no início (não só quando a aba abre) porque o
+  // funil de leads precisa dos nomes dos corretores pra montar os cards.
+  await carregarEquipe();
   carregarLeads();
 }
 
@@ -258,8 +365,11 @@ document.querySelectorAll('[data-tab]').forEach(btn => {
     const tab = btn.dataset.tab;
     document.getElementById('tab-imoveis').style.display = tab === 'imoveis' ? '' : 'none';
     document.getElementById('tab-leads').style.display = tab === 'leads' ? '' : 'none';
+    document.getElementById('tab-equipe').style.display = tab === 'equipe' ? '' : 'none';
     document.getElementById('tab-parceiros').style.display = tab === 'parceiros' ? '' : 'none';
     if (tab === 'parceiros') carregarParceiros();
+    if (tab === 'equipe') carregarEquipe();
+    if (tab === 'leads') carregarLeads();
   });
 });
 
@@ -290,39 +400,263 @@ async function carregarImoveis() {
   }
 }
 
+const FUNIL_COLUNAS = [
+  { status: 'novo', titulo: 'Novo' },
+  { status: 'em_atendimento', titulo: 'Em atendimento' },
+  { status: 'convertido', titulo: 'Convertido' },
+  { status: 'perdido', titulo: 'Perdido' },
+];
+
+let leadsCache = [];
+
+function tempoRelativo(dataStr) {
+  const ms = Date.now() - new Date(dataStr.replace(' ', 'T') + 'Z').getTime();
+  const min = Math.round(ms / 60000);
+  if (min < 1) return 'agora';
+  if (min < 60) return `há ${min} min`;
+  const h = Math.round(min / 60);
+  if (h < 24) return `há ${h}h`;
+  const d = Math.round(h / 24);
+  return `há ${d} dia${d === 1 ? '' : 's'}`;
+}
+
+function preencherSelectCorretores(select, valorAtual) {
+  const opcoes = usuariosCache.filter(u => u.ativo).map(u => `<option value="${u.id}">${u.nome}</option>`).join('');
+  select.innerHTML = select.id === 'lead-corretor'
+    ? `<option value="">Sem atribuição</option>${opcoes}`
+    : `<option value="">Todos os corretores</option>${opcoes}`;
+  select.value = valorAtual != null ? String(valorAtual) : '';
+}
+
 async function carregarLeads() {
   try {
-    const resp = await api('/leads', { auth: true });
+    preencherSelectCorretores(document.getElementById('filtro-corretor-funil'), document.getElementById('filtro-corretor-funil').value);
+    const filtroCorretor = document.getElementById('filtro-corretor-funil').value;
+    const resp = await api('/leads' + (filtroCorretor ? '?corretorId=' + filtroCorretor : ''), { auth: true });
+    leadsCache = resp.data;
     document.getElementById('contagem-leads').textContent = `${resp.total} lead${resp.total === 1 ? '' : 's'}`;
-    document.getElementById('tbody-leads').innerHTML = resp.data.length ? resp.data.map(lead => {
-      const im = imoveisCache.find(i => i.id === lead.imovelId);
-      return `
-      <tr>
-        <td>${lead.nome}</td>
-        <td>${lead.contato}</td>
-        <td>${im ? im.titulo : (lead.imovelId ? '#' + lead.imovelId : '—')}</td>
-        <td style="white-space:normal;max-width:260px;">${lead.mensagem || ''}</td>
-        <td>
-          <select data-status-lead="${lead.id}" style="border:1px solid var(--border-strong);border-radius:6px;padding:.2rem .4rem;background:var(--surface);color:var(--ink);">
-            ${['novo','em_atendimento','convertido','perdido'].map(s => `<option value="${s}" ${s===lead.status?'selected':''}>${s}</option>`).join('')}
-          </select>
-        </td>
-        <td>${new Date(lead.createdAt.replace(' ', 'T') + 'Z').toLocaleString('pt-BR')}</td>
-      </tr>`;
-    }).join('') : '<tr><td colspan="6" style="color:var(--ink-faint);">Nenhum lead recebido ainda.</td></tr>';
 
-    document.querySelectorAll('[data-status-lead]').forEach(sel => {
-      sel.addEventListener('change', async () => {
-        try {
-          await api('/leads/' + sel.dataset.statusLead, { method: 'PUT', auth: true, body: { status: sel.value } });
-          showToast('Status do lead atualizado.');
-        } catch (err) {
-          showToast('Erro ao atualizar: ' + err.message);
-        }
-      });
+    document.getElementById('funil-board').innerHTML = FUNIL_COLUNAS.map(col => {
+      const leadsDaColuna = leadsCache.filter(l => l.status === col.status);
+      return `
+      <div class="funil-col">
+        <div class="funil-col-head">
+          <span>${col.titulo}</span>
+          <span class="funil-count">${leadsDaColuna.length}</span>
+        </div>
+        <div class="funil-col-body">
+          ${leadsDaColuna.length ? leadsDaColuna.map(lead => {
+            const im = imoveisCache.find(i => i.id === lead.imovelId);
+            const corretor = usuariosCache.find(u => u.id === lead.corretorId);
+            return `
+            <button type="button" class="lead-card" data-lead="${lead.id}">
+              <div class="lead-card-nome">${lead.nome}</div>
+              <div class="lead-card-imovel">${im ? im.titulo : (lead.imovelId ? 'Imóvel #' + lead.imovelId : 'Contato geral')}</div>
+              <div class="lead-card-footer">
+                <span class="lead-corretor-badge ${corretor ? '' : 'sem-corretor'}">${corretor ? corretor.nome : 'Sem corretor'}</span>
+                <span class="lead-card-data">${tempoRelativo(lead.createdAt)}</span>
+              </div>
+            </button>`;
+          }).join('') : '<p class="funil-vazio">Nenhum lead aqui.</p>'}
+        </div>
+      </div>`;
+    }).join('');
+
+    document.querySelectorAll('[data-lead]').forEach(card => {
+      card.addEventListener('click', () => abrirLead(Number(card.dataset.lead)));
     });
   } catch (err) {
-    document.getElementById('tbody-leads').innerHTML = `<tr><td colspan="6" style="color:var(--danger);">Erro ao carregar: ${err.message}</td></tr>`;
+    document.getElementById('funil-board').innerHTML = `<p style="color:var(--danger);">Erro ao carregar: ${err.message}</p>`;
+  }
+}
+
+document.getElementById('filtro-corretor-funil').addEventListener('change', carregarLeads);
+
+let leadAtualId = null;
+
+async function abrirLead(id) {
+  leadAtualId = id;
+  const lead = leadsCache.find(l => l.id === id);
+  if (!lead) return;
+  const im = imoveisCache.find(i => i.id === lead.imovelId);
+
+  document.getElementById('lead-titulo').textContent = lead.nome;
+  document.getElementById('lead-info').innerHTML = `
+    <p><strong>Contato:</strong> ${lead.contato}</p>
+    <p><strong>Imóvel de interesse:</strong> ${im ? im.titulo : (lead.imovelId ? 'Imóvel #' + lead.imovelId : 'Contato geral (sem imóvel específico)')}</p>
+    ${lead.mensagem ? `<p><strong>Mensagem original:</strong> ${lead.mensagem}</p>` : ''}
+    <p style="color:var(--ink-faint);font-size:.8rem;">Recebido em ${new Date(lead.createdAt.replace(' ', 'T') + 'Z').toLocaleString('pt-BR')}</p>
+  `;
+  document.getElementById('lead-status').value = lead.status;
+  preencherSelectCorretores(document.getElementById('lead-corretor'), lead.corretorId);
+  document.getElementById('lead-nova-nota').value = '';
+  document.getElementById('modal-lead-backdrop').classList.add('show');
+  carregarInteracoesLead(id);
+}
+
+function fecharModalLead() { document.getElementById('modal-lead-backdrop').classList.remove('show'); }
+document.getElementById('btn-fechar-lead').addEventListener('click', fecharModalLead);
+document.getElementById('modal-lead-backdrop').addEventListener('click', (e) => { if (e.target.id === 'modal-lead-backdrop') fecharModalLead(); });
+
+const TIPO_INTERACAO_LABEL = { sistema: '⚡', status: '↻', atribuicao: '👤', nota: '💬' };
+
+async function carregarInteracoesLead(id) {
+  const el = document.getElementById('lead-timeline');
+  el.innerHTML = '<p style="color:var(--ink-faint);font-size:.85rem;">Carregando…</p>';
+  try {
+    const resp = await api('/leads/' + id + '/interacoes', { auth: true });
+    el.innerHTML = resp.data.length ? resp.data.map(it => `
+      <div class="timeline-item">
+        <span class="timeline-icone">${TIPO_INTERACAO_LABEL[it.tipo] || '•'}</span>
+        <div class="timeline-corpo">
+          <div class="timeline-texto">${it.texto}</div>
+          <div class="timeline-meta">${it.userNome || 'Sistema'} · ${new Date(it.createdAt.replace(' ', 'T') + 'Z').toLocaleString('pt-BR')}</div>
+        </div>
+      </div>
+    `).join('') : '<p style="color:var(--ink-faint);font-size:.85rem;">Sem histórico ainda.</p>';
+  } catch (err) {
+    el.innerHTML = `<p style="color:var(--danger);font-size:.85rem;">Erro ao carregar: ${err.message}</p>`;
+  }
+}
+
+document.getElementById('lead-status').addEventListener('change', async (e) => {
+  try {
+    await api('/leads/' + leadAtualId, { method: 'PUT', auth: true, body: { status: e.target.value } });
+    showToast('Status atualizado.');
+    await carregarLeads();
+    carregarInteracoesLead(leadAtualId);
+  } catch (err) {
+    showToast('Erro ao atualizar: ' + err.message);
+  }
+});
+
+document.getElementById('lead-corretor').addEventListener('change', async (e) => {
+  try {
+    await api('/leads/' + leadAtualId, { method: 'PUT', auth: true, body: { corretorId: e.target.value ? Number(e.target.value) : null } });
+    showToast('Atribuição atualizada.');
+    await carregarLeads();
+    carregarInteracoesLead(leadAtualId);
+  } catch (err) {
+    showToast('Erro ao atribuir: ' + err.message);
+  }
+});
+
+document.getElementById('form-nota-lead').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const texto = document.getElementById('lead-nova-nota').value.trim();
+  if (!texto) return;
+  try {
+    await api('/leads/' + leadAtualId + '/interacoes', { method: 'POST', auth: true, body: { texto } });
+    document.getElementById('lead-nova-nota').value = '';
+    carregarInteracoesLead(leadAtualId);
+  } catch (err) {
+    showToast('Erro ao registrar: ' + err.message);
+  }
+});
+
+// ---------------------------------------------------------------------
+// Equipe (Fase 5) — corretores com login no painel
+// ---------------------------------------------------------------------
+
+async function carregarEquipe() {
+  try {
+    const resp = await api('/usuarios', { auth: true });
+    usuariosCache = resp.data;
+    const tbody = document.getElementById('tbody-equipe');
+    if (!tbody) return; // ainda não renderizou a aba na primeira chamada do init()
+    document.getElementById('contagem-equipe').textContent = `${resp.total} usuário${resp.total === 1 ? '' : 's'}`;
+    tbody.innerHTML = resp.data.map(u => `
+      <tr>
+        <td>${u.nome}${u.id === meId ? ' <span style="color:var(--ink-faint);font-size:.78rem;">(você)</span>' : ''}</td>
+        <td>${u.email}</td>
+        <td>${u.creci || '—'}</td>
+        <td>${u.papel === 'admin' ? 'Administrador' : 'Corretor'}</td>
+        <td><span class="status-pill ${u.ativo ? 'disponivel' : 'vendido'}">${u.ativo ? 'ativo' : 'inativo'}</span></td>
+        <td style="display:flex;gap:.4rem;flex-wrap:wrap;">
+          ${mePapel === 'admin' ? `
+            <button class="btn btn-ghost" data-editar-usuario="${u.id}">Editar</button>
+            ${u.id !== meId ? `<button class="btn btn-danger" data-excluir-usuario="${u.id}">Excluir</button>` : ''}
+          ` : ''}
+        </td>
+      </tr>
+    `).join('');
+    document.querySelectorAll('[data-editar-usuario]').forEach(b => b.addEventListener('click', () => abrirModalUsuario(Number(b.dataset.editarUsuario))));
+    document.querySelectorAll('[data-excluir-usuario]').forEach(b => b.addEventListener('click', () => excluirUsuario(Number(b.dataset.excluirUsuario))));
+  } catch (err) {
+    const tbody = document.getElementById('tbody-equipe');
+    if (tbody) tbody.innerHTML = `<tr><td colspan="6" style="color:var(--danger);">Erro ao carregar: ${err.message}</td></tr>`;
+  }
+}
+
+function abrirModalUsuario(id) {
+  const form = document.getElementById('form-usuario');
+  form.reset();
+  document.getElementById('u-id').value = '';
+  document.getElementById('modal-usuario-titulo').textContent = id ? 'Editar usuário' : 'Novo usuário';
+  document.getElementById('u-ativo-campo').style.display = id ? '' : 'none';
+  document.getElementById('u-senha').required = !id;
+  document.getElementById('u-senha-label').textContent = id ? 'Nova senha (deixe em branco para manter)' : 'Senha';
+  if (id) {
+    const u = usuariosCache.find(x => x.id === id);
+    if (u) {
+      document.getElementById('u-id').value = u.id;
+      document.getElementById('u-nome').value = u.nome;
+      document.getElementById('u-email').value = u.email;
+      document.getElementById('u-creci').value = u.creci || '';
+      document.getElementById('u-papel').value = u.papel;
+      document.getElementById('u-ativo').checked = u.ativo;
+    }
+  }
+  document.getElementById('modal-usuario-backdrop').classList.add('show');
+}
+function fecharModalUsuario() { document.getElementById('modal-usuario-backdrop').classList.remove('show'); }
+
+document.getElementById('btn-novo-usuario').addEventListener('click', () => abrirModalUsuario(null));
+document.getElementById('btn-usuario-cancelar').addEventListener('click', fecharModalUsuario);
+document.getElementById('modal-usuario-backdrop').addEventListener('click', (e) => { if (e.target.id === 'modal-usuario-backdrop') fecharModalUsuario(); });
+
+document.getElementById('form-usuario').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const id = document.getElementById('u-id').value;
+  const payload = {
+    nome: document.getElementById('u-nome').value,
+    email: document.getElementById('u-email').value,
+    creci: document.getElementById('u-creci').value.trim() || null,
+    papel: document.getElementById('u-papel').value,
+  };
+  const senha = document.getElementById('u-senha').value;
+  if (senha) payload.senha = senha;
+  if (id) payload.ativo = document.getElementById('u-ativo').checked;
+
+  const btn = document.getElementById('btn-usuario-salvar');
+  btn.disabled = true; btn.textContent = 'Salvando…';
+  try {
+    if (id) {
+      await api('/usuarios/' + id, { method: 'PUT', auth: true, body: payload });
+      showToast('Usuário atualizado.');
+    } else {
+      await api('/usuarios', { method: 'POST', auth: true, body: payload });
+      showToast('Usuário criado.');
+    }
+    fecharModalUsuario();
+    await carregarEquipe();
+    carregarLeads();
+  } catch (err) {
+    showToast('Erro ao salvar: ' + err.message);
+  } finally {
+    btn.disabled = false; btn.textContent = 'Salvar';
+  }
+});
+
+async function excluirUsuario(id) {
+  if (!confirm('Excluir este usuário? Ele perde o acesso ao painel imediatamente. Leads atribuídos a ele ficam sem corretor responsável.')) return;
+  try {
+    await api('/usuarios/' + id, { method: 'DELETE', auth: true });
+    showToast('Usuário excluído.');
+    await carregarEquipe();
+    carregarLeads();
+  } catch (err) {
+    showToast('Erro ao excluir: ' + err.message);
   }
 }
 

@@ -1,0 +1,586 @@
+<title>Portal Malb Imóveis</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600;9..144,700&family=Source+Sans+3:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap');
+
+  :root {
+    --bg: #FAF7F2;
+    --surface: #FFFFFF;
+    --surface-2: #F1EBE0;
+    --ink: #221C15;
+    --ink-soft: #5C5142;
+    --ink-faint: #8C8071;
+    --accent: #A8461F;
+    --accent-ink: #FFFFFF;
+    --accent-soft: #F1DECB;
+    --accent2: #1F4D3F;
+    --accent2-soft: #DCEAE4;
+    --border: #E4DAC8;
+    --border-strong: #CDBFA5;
+    --shadow: 0 1px 2px rgba(34,28,21,.05), 0 8px 24px rgba(34,28,21,.06);
+    --danger: #A8341F;
+    --ok: #2E7D4F;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #17130F; --surface: #1F1913; --surface-2: #292018;
+      --ink: #F3ECE1; --ink-soft: #C9BCA6; --ink-faint: #8F8271;
+      --accent: #E08553; --accent-ink: #201206; --accent-soft: #402A1B;
+      --accent2: #5FA189; --accent2-soft: #223A31;
+      --border: #362B1F; --border-strong: #4A3B29;
+      --shadow: 0 1px 2px rgba(0,0,0,.3), 0 10px 28px rgba(0,0,0,.35);
+      --danger: #E08268; --ok: #6BBF8C;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #17130F; --surface: #1F1913; --surface-2: #292018;
+    --ink: #F3ECE1; --ink-soft: #C9BCA6; --ink-faint: #8F8271;
+    --accent: #E08553; --accent-ink: #201206; --accent-soft: #402A1B;
+    --accent2: #5FA189; --accent2-soft: #223A31;
+    --border: #362B1F; --border-strong: #4A3B29;
+    --shadow: 0 1px 2px rgba(0,0,0,.3), 0 10px 28px rgba(0,0,0,.35);
+    --danger: #E08268; --ok: #6BBF8C;
+  }
+
+  * { box-sizing: border-box; }
+  html { scroll-behavior: smooth; }
+  body {
+    margin: 0; background: var(--bg); color: var(--ink);
+    font-family: 'Source Sans 3', system-ui, sans-serif;
+    line-height: 1.55; -webkit-font-smoothing: antialiased;
+  }
+  a { color: inherit; text-decoration: none; }
+  button { font: inherit; }
+  input, select { font: inherit; color: inherit; }
+  ::selection { background: var(--accent-soft); }
+
+  h1,h2,h3 { font-family: 'Fraunces', Georgia, serif; font-weight: 600; text-wrap: balance; margin: 0; }
+  .price { font-family: 'IBM Plex Mono', monospace; font-variant-numeric: tabular-nums; }
+
+  /* ---- shell ---- */
+  header.topbar {
+    position: sticky; top: 0; z-index: 20;
+    background: color-mix(in srgb, var(--bg) 88%, transparent);
+    backdrop-filter: blur(8px);
+    border-bottom: 1px solid var(--border);
+  }
+  .topbar-inner {
+    max-width: 1180px; margin: 0 auto; padding: 0.9rem 1.5rem;
+    display: flex; align-items: center; gap: 2rem;
+  }
+  .logo { display: flex; align-items: center; gap: 0.5rem; font-family: 'Fraunces', serif; font-weight: 700; font-size: 1.2rem; flex-shrink: 0; }
+  .logo .mark { width: 30px; height: 30px; border-radius: 8px; background: var(--accent); display: flex; align-items: center; justify-content: center; color: var(--accent-ink); font-weight: 700; font-family: 'Fraunces', serif; }
+  nav.mainnav { display: flex; gap: 1.6rem; font-size: 0.95rem; font-weight: 600; color: var(--ink-soft); }
+  nav.mainnav a { padding: 0.3rem 0; border-bottom: 2px solid transparent; }
+  nav.mainnav a.active, nav.mainnav a:hover { color: var(--ink); border-color: var(--accent); }
+  .topbar-spacer { flex: 1; }
+  .btn {
+    display: inline-flex; align-items: center; gap: 0.4rem;
+    border-radius: 8px; padding: 0.55rem 1.1rem; font-weight: 600; font-size: 0.9rem;
+    border: 1px solid transparent; cursor: pointer; white-space: nowrap;
+  }
+  .btn-primary { background: var(--accent); color: var(--accent-ink); }
+  .btn-primary:hover { filter: brightness(1.06); }
+  .btn-ghost { background: transparent; border-color: var(--border-strong); color: var(--ink); }
+  .btn-ghost:hover { background: var(--surface-2); }
+
+  main { max-width: 1180px; margin: 0 auto; padding: 0 1.5rem 5rem; }
+  footer { border-top: 1px solid var(--border); margin-top: 4rem; }
+  .footer-inner { max-width: 1180px; margin: 0 auto; padding: 2.5rem 1.5rem; display: flex; justify-content: space-between; flex-wrap: wrap; gap: 1rem; color: var(--ink-faint); font-size: 0.85rem; }
+
+  /* ---- hero / search ---- */
+  .hero { padding: 4.5rem 0 3rem; text-align: center; }
+  .hero h1 { font-size: clamp(2.1rem, 5vw, 3.1rem); max-width: 20ch; margin: 0 auto 0.8rem; }
+  .hero .sub { color: var(--ink-soft); font-size: 1.1rem; max-width: 46ch; margin: 0 auto 2.2rem; }
+
+  .searchbar {
+    background: var(--surface); border: 1px solid var(--border); border-radius: 16px;
+    box-shadow: var(--shadow); padding: 0.9rem; max-width: 880px; margin: 0 auto;
+    display: grid; grid-template-columns: 1.4fr 1fr 1fr auto; gap: 0.6rem; align-items: end; text-align: left;
+  }
+  .field { display: flex; flex-direction: column; gap: 0.3rem; }
+  .field label { font-size: 0.72rem; text-transform: uppercase; letter-spacing: .05em; color: var(--ink-faint); font-weight: 600; }
+  .field input, .field select {
+    border: 1px solid var(--border-strong); border-radius: 8px; padding: 0.6rem 0.7rem;
+    background: var(--surface); color: var(--ink); font-size: 0.92rem;
+  }
+  .field input:focus, .field select:focus { outline: 2px solid var(--accent); outline-offset: 1px; }
+  .searchbar .btn-primary { padding: 0.65rem 1.3rem; height: fit-content; }
+  .segtoggle { display: inline-flex; border: 1px solid var(--border-strong); border-radius: 8px; overflow: hidden; margin: 0 auto 1.6rem; }
+  .segtoggle button { padding: 0.5rem 1.2rem; background: var(--surface); border: none; color: var(--ink-soft); font-weight: 600; cursor: pointer; }
+  .segtoggle button.active { background: var(--accent); color: var(--accent-ink); }
+
+  /* ---- sections ---- */
+  .section-head { display: flex; align-items: baseline; justify-content: space-between; margin: 3.2rem 0 1.2rem; gap: 1rem; }
+  .section-head h2 { font-size: 1.5rem; }
+  .section-head .count { color: var(--ink-faint); font-size: 0.9rem; }
+
+  .stats-row { display: grid; grid-template-columns: repeat(4,1fr); gap: 0.8rem; margin-top: 2.5rem; }
+  .stat-tile { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 1rem 1.2rem; box-shadow: var(--shadow); text-align: center; }
+  .stat-tile .num { font-family: 'Fraunces', serif; font-weight: 600; font-size: 1.6rem; color: var(--accent2); }
+  .stat-tile .label { font-size: 0.78rem; color: var(--ink-faint); margin-top: 0.2rem; }
+
+  /* ---- property grid / cards ---- */
+  .grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1.2rem; }
+  .card {
+    background: var(--surface); border: 1px solid var(--border); border-radius: 14px; overflow: hidden;
+    box-shadow: var(--shadow); cursor: pointer; display: flex; flex-direction: column;
+    transition: transform .15s ease, box-shadow .15s ease;
+  }
+  .card:hover { transform: translateY(-3px); box-shadow: 0 4px 8px rgba(34,28,21,.08), 0 16px 32px rgba(34,28,21,.1); }
+  .card .thumb { aspect-ratio: 4/3; position: relative; }
+  .card .thumb svg { width: 100%; height: 100%; display: block; }
+  .badge { position: absolute; top: 0.7rem; left: 0.7rem; background: var(--surface); color: var(--ink); font-size: 0.72rem; font-weight: 700; padding: 0.25rem 0.6rem; border-radius: 999px; box-shadow: var(--shadow); }
+  .badge.venda { color: var(--accent2); } .badge.aluguel { color: var(--accent); }
+  .fav {
+    position: absolute; top: 0.7rem; right: 0.7rem; width: 30px; height: 30px; border-radius: 50%;
+    background: color-mix(in srgb, var(--surface) 85%, transparent); border: none; cursor: pointer;
+    display: flex; align-items: center; justify-content: center; color: var(--ink-faint);
+  }
+  .fav[aria-pressed="true"] { color: var(--accent); }
+  .card .body { padding: 0.95rem 1.05rem 1.1rem; display: flex; flex-direction: column; gap: 0.4rem; flex: 1; }
+  .card .price { font-size: 1.15rem; font-weight: 600; color: var(--ink); }
+  .card .price .per { font-family: 'Source Sans 3'; font-size: 0.75rem; color: var(--ink-faint); font-weight: 400; }
+  .card .title { font-size: 0.95rem; font-weight: 600; }
+  .card .addr { font-size: 0.83rem; color: var(--ink-soft); }
+  .card .meta { display: flex; gap: 0.9rem; font-size: 0.8rem; color: var(--ink-faint); margin-top: auto; padding-top: 0.5rem; border-top: 1px solid var(--border); }
+  .card .meta span { display: flex; align-items: center; gap: 0.3rem; }
+
+  /* ---- busca layout ---- */
+  .busca-layout { display: grid; grid-template-columns: 240px 1fr; gap: 2rem; align-items: start; margin-top: 1.6rem; }
+  .filters { background: var(--surface); border: 1px solid var(--border); border-radius: 14px; padding: 1.2rem; position: sticky; top: 5.5rem; box-shadow: var(--shadow); }
+  .filters h3 { font-size: 0.95rem; margin-bottom: 0.9rem; }
+  .filter-group { margin-bottom: 1.3rem; }
+  .filter-group .flabel { font-size: 0.75rem; text-transform: uppercase; letter-spacing: .05em; color: var(--ink-faint); font-weight: 600; margin-bottom: 0.5rem; display: block; }
+  .chip-row { display: flex; flex-wrap: wrap; gap: 0.4rem; }
+  .chip { border: 1px solid var(--border-strong); background: var(--surface); color: var(--ink-soft); padding: 0.35rem 0.7rem; border-radius: 999px; font-size: 0.8rem; cursor: pointer; }
+  .chip.active { background: var(--accent2); border-color: var(--accent2); color: var(--accent2-soft); }
+  .filters select, .filters input[type=range] { width: 100%; }
+  .range-val { font-size: 0.8rem; color: var(--ink-soft); margin-top: 0.3rem; font-family: 'IBM Plex Mono', monospace; }
+
+  .empty { text-align: center; padding: 4rem 1rem; color: var(--ink-faint); }
+
+  /* ---- detalhe ---- */
+  .back-link { display: inline-flex; align-items: center; gap: 0.4rem; color: var(--ink-soft); font-size: 0.9rem; font-weight: 600; margin: 1.6rem 0 1.2rem; cursor: pointer; }
+  .back-link:hover { color: var(--ink); }
+  .detail-hero { aspect-ratio: 21/8; border-radius: 16px; overflow: hidden; box-shadow: var(--shadow); margin-bottom: 1.6rem; }
+  .detail-hero svg { width: 100%; height: 100%; display: block; }
+  .detail-layout { display: grid; grid-template-columns: 1.6fr 1fr; gap: 2.2rem; align-items: start; }
+  .detail-top { display: flex; justify-content: space-between; align-items: start; gap: 1rem; margin-bottom: 0.4rem; }
+  .detail-price { font-size: 1.8rem; font-weight: 600; }
+  .detail-price .per { font-family: 'Source Sans 3'; font-size: 0.85rem; color: var(--ink-faint); font-weight: 400; }
+  .detail-title { font-size: 1.5rem; margin-bottom: 0.3rem; }
+  .detail-addr { color: var(--ink-soft); margin-bottom: 1.4rem; }
+  .feature-grid { display: grid; grid-template-columns: repeat(4,1fr); gap: 0.8rem; margin-bottom: 1.8rem; }
+  .feature-tile { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 0.8rem; text-align: center; }
+  .feature-tile .n { font-family: 'Fraunces', serif; font-weight: 600; font-size: 1.25rem; }
+  .feature-tile .l { font-size: 0.72rem; color: var(--ink-faint); text-transform: uppercase; letter-spacing: .04em; margin-top: 0.15rem; }
+  .desc { color: var(--ink-soft); margin-bottom: 1.6rem; }
+  .desc p { margin: 0 0 0.9rem; }
+  .amenities { display: flex; flex-wrap: wrap; gap: 0.5rem; margin-bottom: 2rem; }
+  .amenity { font-size: 0.82rem; background: var(--surface-2); color: var(--ink-soft); padding: 0.4rem 0.8rem; border-radius: 999px; }
+
+  .contact-card { background: var(--surface); border: 1px solid var(--border); border-radius: 14px; padding: 1.4rem; box-shadow: var(--shadow); position: sticky; top: 5.5rem; }
+  .agent { display: flex; align-items: center; gap: 0.7rem; margin-bottom: 1.1rem; }
+  .agent .av { width: 44px; height: 44px; border-radius: 50%; background: var(--accent2-soft); color: var(--accent2); display: flex; align-items: center; justify-content: center; font-weight: 700; font-family: 'Fraunces', serif; }
+  .agent .name { font-weight: 600; font-size: 0.95rem; }
+  .agent .role { font-size: 0.78rem; color: var(--ink-faint); }
+  .contact-card form { display: flex; flex-direction: column; gap: 0.6rem; margin-top: 0.6rem; }
+  .contact-card input, .contact-card textarea { border: 1px solid var(--border-strong); border-radius: 8px; padding: 0.6rem 0.7rem; background: var(--surface); color: var(--ink); font-size: 0.9rem; }
+  .contact-card textarea { resize: vertical; min-height: 70px; }
+  .contact-card .btn-primary { width: 100%; justify-content: center; margin-top: 0.2rem; }
+  .disclaimer { font-size: 0.74rem; color: var(--ink-faint); margin-top: 0.7rem; }
+
+  .toast {
+    position: fixed; bottom: 1.5rem; left: 50%; transform: translateX(-50%) translateY(20px);
+    background: var(--ink); color: var(--bg); padding: 0.7rem 1.2rem; border-radius: 10px;
+    font-size: 0.88rem; font-weight: 600; opacity: 0; pointer-events: none; transition: all .25s ease; z-index: 50;
+    box-shadow: 0 10px 30px rgba(0,0,0,.25);
+  }
+  .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+
+  @media (max-width: 880px) {
+    .grid { grid-template-columns: repeat(2,1fr); }
+    .busca-layout, .detail-layout { grid-template-columns: 1fr; }
+    .filters, .contact-card { position: static; }
+    .searchbar { grid-template-columns: 1fr 1fr; }
+    .stats-row { grid-template-columns: repeat(2,1fr); }
+    nav.mainnav { display: none; }
+  }
+  @media (max-width: 560px) {
+    .grid { grid-template-columns: 1fr; }
+    .feature-grid { grid-template-columns: repeat(2,1fr); }
+    .searchbar { grid-template-columns: 1fr; }
+    .topbar-inner .btn-primary[disabled] { display: none; }
+    .topbar-inner { gap: 1rem; }
+  }
+</style>
+
+<header class="topbar">
+  <div class="topbar-inner">
+    <a href="#/" class="logo"><span class="mark">M</span> Malb Imóveis</a>
+    <nav class="mainnav" id="mainnav">
+      <a href="#/" data-nav="home">Início</a>
+      <a href="#/busca?finalidade=venda" data-nav="venda">Comprar</a>
+      <a href="#/busca?finalidade=aluguel" data-nav="aluguel">Alugar</a>
+    </nav>
+    <div class="topbar-spacer"></div>
+    <button class="btn btn-ghost" id="theme-toggle" title="Alternar tema">🌓</button>
+    <button class="btn btn-primary" disabled title="Em breve — painel do corretor">Anunciar imóvel</button>
+  </div>
+</header>
+
+<main id="app"></main>
+
+<footer>
+  <div class="footer-inner">
+    <div>© 2026 Malb Imóveis — protótipo de navegação, dados fictícios.</div>
+    <div>Fase 1 do roadmap · <a href="#/" style="text-decoration:underline">portal-malb-imoveis</a></div>
+  </div>
+</footer>
+
+<div class="toast" id="toast"></div>
+
+<script>
+/* ===================== dados fictícios ===================== */
+const IMOVEIS = [
+  { id: 1, tipo: "Apartamento", finalidade: "venda", preco: 620000, titulo: "Apartamento reformado com varanda", bairro: "Vila Mariana", cidade: "São Paulo", quartos: 2, banheiros: 2, vagas: 1, area: 65, hue: 18,
+    desc: "Apartamento de 2 quartos totalmente reformado, com varanda gourmet integrada à sala. Prédio com portaria 24h e academia.",
+    amenities: ["Portaria 24h","Academia","Varanda gourmet","Elevador"] },
+  { id: 2, tipo: "Casa", finalidade: "venda", preco: 1850000, titulo: "Casa térrea com piscina e quintal amplo", bairro: "Alto de Pinheiros", cidade: "São Paulo", quartos: 3, banheiros: 4, vagas: 3, area: 210, hue: 145,
+    desc: "Casa térrea em rua tranquila, com piscina, churrasqueira e amplo quintal gramado. Suíte master com closet.",
+    amenities: ["Piscina","Churrasqueira","Quintal","Suíte master"] },
+  { id: 3, tipo: "Studio", finalidade: "aluguel", preco: 3200, titulo: "Studio mobiliado a poucos passos do metrô", bairro: "Itaim Bibi", cidade: "São Paulo", quartos: 1, banheiros: 1, vagas: 1, area: 32, hue: 265,
+    desc: "Studio compacto e funcional, totalmente mobiliado, a 5 minutos a pé do metrô Faria Lima. Ideal para quem trabalha na região.",
+    amenities: ["Mobiliado","Próximo ao metrô","Coworking no prédio"] },
+  { id: 4, tipo: "Apartamento", finalidade: "venda", preco: 980000, titulo: "Apartamento amplo com vista livre", bairro: "Moema", cidade: "São Paulo", quartos: 3, banheiros: 3, vagas: 2, area: 98, hue: 18,
+    desc: "3 dormitórios sendo 1 suíte, vista livre e desimpedida, próximo ao Parque Ibirapuera. Lazer completo no condomínio.",
+    amenities: ["Vista livre","Salão de festas","Piscina no condomínio","2 vagas"] },
+  { id: 5, tipo: "Cobertura", finalidade: "venda", preco: 3400000, titulo: "Cobertura duplex com terraço e piscina privativa", bairro: "Jardins", cidade: "São Paulo", quartos: 4, banheiros: 5, vagas: 4, area: 240, hue: 335,
+    desc: "Cobertura duplex de alto padrão, terraço com piscina privativa e vista panorâmica da cidade. Acabamento de altíssimo padrão.",
+    amenities: ["Piscina privativa","Terraço","Vista panorâmica","4 vagas"] },
+  { id: 6, tipo: "Apartamento", finalidade: "aluguel", preco: 2400, titulo: "Apartamento 1 dormitório recém pintado", bairro: "Vila Madalena", cidade: "São Paulo", quartos: 1, banheiros: 1, vagas: 1, area: 45, hue: 18,
+    desc: "1 dormitório em prédio boutique na Vila Madalena, perto de bares, restaurantes e do metrô Vila Madalena.",
+    amenities: ["Pet friendly","Recém reformado","Próximo ao metrô"] },
+  { id: 7, tipo: "Casa", finalidade: "venda", preco: 2100000, titulo: "Casa em condomínio fechado com área verde", bairro: "Granja Viana", cidade: "Cotia", quartos: 4, banheiros: 4, vagas: 4, area: 320, hue: 145,
+    desc: "Casa em condomínio fechado com segurança 24h, área verde preservada e infraestrutura completa de lazer.",
+    amenities: ["Condomínio fechado","Segurança 24h","Área verde","Salão de jogos"] },
+  { id: 8, tipo: "Apartamento", finalidade: "aluguel", preco: 4100, titulo: "Apartamento alto padrão com lazer completo", bairro: "Perdizes", cidade: "São Paulo", quartos: 2, banheiros: 2, vagas: 1, area: 70, hue: 18,
+    desc: "2 dormitórios em condomínio clube, com piscina, spa, quadra poliesportiva e espaço kids.",
+    amenities: ["Condomínio clube","Piscina","Espaço kids","Spa"] },
+  { id: 9, tipo: "Sala Comercial", finalidade: "aluguel", preco: 6500, titulo: "Sala comercial em prédio corporativo", bairro: "Faria Lima", cidade: "São Paulo", quartos: 0, banheiros: 2, vagas: 2, area: 55, hue: 220,
+    desc: "Sala comercial pronta para uso, em prédio corporativo triple A na Faria Lima. Recepção compartilhada e 2 vagas de garagem.",
+    amenities: ["Prédio triple A","Recepção","Gerador","2 vagas"] },
+  { id: 10, tipo: "Terreno", finalidade: "venda", preco: 450000, titulo: "Terreno plano pronto para construir", bairro: "Centro", cidade: "Cotia", quartos: 0, banheiros: 0, vagas: 0, area: 500, hue: 95,
+    desc: "Terreno plano de 500m², em rua asfaltada, com toda infraestrutura de água, luz e esgoto disponível.",
+    amenities: ["Terreno plano","Rua asfaltada","Documentação regular"] },
+  { id: 11, tipo: "Apartamento", finalidade: "venda", preco: 1150000, titulo: "Apartamento novo com varanda gourmet", bairro: "Brooklin", cidade: "São Paulo", quartos: 3, banheiros: 3, vagas: 2, area: 105, hue: 18,
+    desc: "Apartamento novo, nunca habitado, com varanda gourmet e vista para área verde. Entrega imediata.",
+    amenities: ["Nunca habitado","Varanda gourmet","Entrega imediata","2 vagas"] },
+  { id: 12, tipo: "Kitnet", finalidade: "aluguel", preco: 1800, titulo: "Kitnet compacta próxima à faculdade", bairro: "Bela Vista", cidade: "São Paulo", quartos: 1, banheiros: 1, vagas: 0, area: 25, hue: 265,
+    desc: "Kitnet compacta e bem localizada, a poucos metros de universidades e do centro da cidade. Ótima para estudantes.",
+    amenities: ["Próximo a faculdades","Água inclusa","Prédio com elevador"] },
+];
+
+const fmtPreco = (v, finalidade) => {
+  const s = "R$ " + v.toLocaleString("pt-BR");
+  return finalidade === "aluguel" ? s : s;
+};
+
+/* ===================== ilustrações SVG (sem fotos reais) ===================== */
+function thumbSVG(im, tall) {
+  const h = im.hue;
+  const c1 = `hsl(${h} 45% ${tall?32:38}%)`, c2 = `hsl(${h} 40% ${tall?22:26}%)`, sky = `hsl(${h+20} 55% 88%)`;
+  let building = '';
+  if (im.tipo === "Casa") {
+    building = `
+      <rect x="60" y="140" width="180" height="90" fill="${c1}"/>
+      <polygon points="50,140 150,80 250,140" fill="${c2}"/>
+      <rect x="140" y="180" width="30" height="50" fill="hsl(${h} 30% 15%)"/>
+      <rect x="85" y="160" width="24" height="24" fill="${sky}"/>
+      <rect x="191" y="160" width="24" height="24" fill="${sky}"/>`;
+  } else if (im.tipo === "Terreno") {
+    building = `
+      <rect x="40" y="150" width="220" height="80" fill="hsl(${h} 35% 45%)"/>
+      <line x1="40" y1="150" x2="260" y2="150" stroke="hsl(${h} 30% 30%)" stroke-width="3" stroke-dasharray="8 6"/>
+      <line x1="40" y1="150" x2="40" y2="230" stroke="hsl(${h} 30% 30%)" stroke-width="3" stroke-dasharray="8 6"/>
+      <line x1="260" y1="150" x2="260" y2="230" stroke="hsl(${h} 30% 30%)" stroke-width="3" stroke-dasharray="8 6"/>`;
+  } else if (im.tipo === "Sala Comercial") {
+    building = `
+      <rect x="70" y="60" width="160" height="170" fill="${c1}"/>
+      ${Array.from({length:5}).map((_,r)=>Array.from({length:4}).map((_,c)=>`<rect x="${88+c*32}" y="${78+r*30}" width="20" height="18" fill="${sky}"/>`).join('')).join('')}`;
+  } else {
+    // apartamento / studio / cobertura / kitnet: prédio
+    const floors = tall ? 7 : 6;
+    building = `
+      <rect x="90" y="${230-floors*24}" width="140" height="${floors*24}" fill="${c1}"/>
+      ${Array.from({length:floors}).map((_,r)=>Array.from({length:3}).map((_,c)=>`<rect x="${106+c*40}" y="${230-floors*24+10+r*24}" width="24" height="16" fill="${sky}"/>`).join('')).join('')}
+      ${im.tipo==="Cobertura" ? `<rect x="105" y="${230-floors*24-16}" width="110" height="16" fill="${c2}"/>` : ''}`;
+  }
+  return `<svg viewBox="0 0 300 230" preserveAspectRatio="xMidYMax slice" xmlns="http://www.w3.org/2000/svg">
+    <rect width="300" height="230" fill="${sky}"/>
+    <rect y="228" width="300" height="2" fill="hsl(${h} 20% 60%)"/>
+    ${building}
+  </svg>`;
+}
+
+/* ===================== helpers ===================== */
+function cardHTML(im) {
+  const per = im.finalidade === "aluguel" ? '<span class="per">/mês</span>' : '';
+  return `<article class="card" data-goto="imovel/${im.id}">
+    <div class="thumb">
+      ${thumbSVG(im)}
+      <span class="badge ${im.finalidade}">${im.finalidade === 'venda' ? 'Venda' : 'Aluguel'}</span>
+      <button class="fav" aria-pressed="false" data-fav="${im.id}" title="Favoritar" onclick="event.stopPropagation(); toggleFav(this, ${im.id})">♥</button>
+    </div>
+    <div class="body">
+      <div class="price">${fmtPreco(im.preco, im.finalidade)}${per}</div>
+      <div class="title">${im.titulo}</div>
+      <div class="addr">${im.bairro}, ${im.cidade}</div>
+      <div class="meta">
+        ${im.quartos ? `<span>🛏 ${im.quartos}</span>` : ''}
+        ${im.banheiros ? `<span>🛁 ${im.banheiros}</span>` : ''}
+        ${im.vagas ? `<span>🚗 ${im.vagas}</span>` : ''}
+        <span>📐 ${im.area}m²</span>
+      </div>
+    </div>
+  </article>`;
+}
+
+function toggleFav(btn, id) {
+  const on = btn.getAttribute('aria-pressed') === 'true';
+  btn.setAttribute('aria-pressed', String(!on));
+  showToast(!on ? 'Adicionado aos favoritos' : 'Removido dos favoritos');
+}
+
+function showToast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg; t.classList.add('show');
+  clearTimeout(showToast._t);
+  showToast._t = setTimeout(()=>t.classList.remove('show'), 2200);
+}
+
+/* ===================== views ===================== */
+function viewHome() {
+  const destaques = IMOVEIS.slice(0, 6);
+  return `
+    <section class="hero">
+      <h1>Encontre o imóvel certo, sem complicação</h1>
+      <p class="sub">Busque, compare e fale direto com o corretor — tudo em um só lugar.</p>
+      <form class="searchbar" onsubmit="event.preventDefault(); goBuscaFromForm(this);">
+        <div class="field">
+          <label for="h-local">Cidade ou bairro</label>
+          <input id="h-local" name="local" placeholder="Ex: Vila Mariana, São Paulo" />
+        </div>
+        <div class="field">
+          <label for="h-tipo">Tipo</label>
+          <select id="h-tipo" name="tipo">
+            <option value="">Todos</option>
+            <option>Apartamento</option><option>Casa</option><option>Studio</option>
+            <option>Cobertura</option><option>Kitnet</option><option>Sala Comercial</option><option>Terreno</option>
+          </select>
+        </div>
+        <div class="field">
+          <label for="h-finalidade">Finalidade</label>
+          <select id="h-finalidade" name="finalidade">
+            <option value="">Comprar ou alugar</option>
+            <option value="venda">Comprar</option>
+            <option value="aluguel">Alugar</option>
+          </select>
+        </div>
+        <button class="btn btn-primary" type="submit">Buscar</button>
+      </form>
+    </section>
+
+    <div class="stats-row">
+      <div class="stat-tile"><div class="num">${IMOVEIS.length}</div><div class="label">imóveis no portal</div></div>
+      <div class="stat-tile"><div class="num">${new Set(IMOVEIS.map(i=>i.bairro)).size}</div><div class="label">bairros atendidos</div></div>
+      <div class="stat-tile"><div class="num">${IMOVEIS.filter(i=>i.finalidade==='venda').length}</div><div class="label">para comprar</div></div>
+      <div class="stat-tile"><div class="num">${IMOVEIS.filter(i=>i.finalidade==='aluguel').length}</div><div class="label">para alugar</div></div>
+    </div>
+
+    <div class="section-head">
+      <h2>Imóveis em destaque</h2>
+      <a href="#/busca" class="btn btn-ghost">Ver todos</a>
+    </div>
+    <div class="grid">${destaques.map(cardHTML).join('')}</div>
+  `;
+}
+
+function goBuscaFromForm(form) {
+  const p = new URLSearchParams();
+  const local = form.local.value.trim();
+  if (local) p.set('local', local);
+  if (form.tipo.value) p.set('tipo', form.tipo.value);
+  if (form.finalidade.value) p.set('finalidade', form.finalidade.value);
+  location.hash = '#/busca' + (p.toString() ? '?' + p.toString() : '');
+}
+
+let filtroState = { finalidade: '', tipo: '', quartosMin: 0, precoMax: null };
+
+function viewBusca(params) {
+  filtroState.finalidade = params.get('finalidade') || filtroState.finalidade || '';
+  filtroState.tipo = params.get('tipo') || filtroState.tipo || '';
+  const local = (params.get('local') || '').toLowerCase();
+
+  const tipos = [...new Set(IMOVEIS.map(i=>i.tipo))];
+  const maxPreco = Math.max(...IMOVEIS.map(i=>i.preco));
+  if (filtroState.precoMax == null) filtroState.precoMax = maxPreco;
+
+  const resultados = IMOVEIS.filter(im => {
+    if (filtroState.finalidade && im.finalidade !== filtroState.finalidade) return false;
+    if (filtroState.tipo && im.tipo !== filtroState.tipo) return false;
+    if (filtroState.quartosMin && im.quartos < filtroState.quartosMin) return false;
+    if (im.preco > filtroState.precoMax) return false;
+    if (local && !(im.bairro.toLowerCase().includes(local) || im.cidade.toLowerCase().includes(local))) return false;
+    return true;
+  });
+
+  setTimeout(() => {
+    document.querySelectorAll('[data-finalidade]').forEach(b => b.classList.toggle('active', b.dataset.finalidade === filtroState.finalidade));
+    document.querySelectorAll('[data-tipo]').forEach(b => b.classList.toggle('active', b.dataset.tipo === filtroState.tipo));
+    document.querySelectorAll('[data-quartos]').forEach(b => b.classList.toggle('active', String(filtroState.quartosMin) === b.dataset.quartos));
+    const range = document.getElementById('f-preco'); if (range) range.value = filtroState.precoMax;
+    const rv = document.getElementById('f-preco-val'); if (rv) rv.textContent = 'até R$ ' + Number(filtroState.precoMax).toLocaleString('pt-BR');
+  }, 0);
+
+  return `
+    <div class="section-head" style="margin-top:1.6rem">
+      <h2>Buscar imóveis</h2>
+      <span class="count">${resultados.length} resultado${resultados.length===1?'':'s'}</span>
+    </div>
+    <div class="busca-layout">
+      <aside class="filters">
+        <h3>Filtros</h3>
+        <div class="filter-group">
+          <span class="flabel">Finalidade</span>
+          <div class="chip-row">
+            <button class="chip" data-finalidade="" onclick="setFiltro('finalidade','')">Todas</button>
+            <button class="chip" data-finalidade="venda" onclick="setFiltro('finalidade','venda')">Comprar</button>
+            <button class="chip" data-finalidade="aluguel" onclick="setFiltro('finalidade','aluguel')">Alugar</button>
+          </div>
+        </div>
+        <div class="filter-group">
+          <span class="flabel">Tipo</span>
+          <div class="chip-row">
+            <button class="chip" data-tipo="" onclick="setFiltro('tipo','')">Todos</button>
+            ${tipos.map(t=>`<button class="chip" data-tipo="${t}" onclick="setFiltro('tipo','${t}')">${t}</button>`).join('')}
+          </div>
+        </div>
+        <div class="filter-group">
+          <span class="flabel">Quartos (mín.)</span>
+          <div class="chip-row">
+            ${[0,1,2,3,4].map(n=>`<button class="chip" data-quartos="${n}" onclick="setFiltroNum('quartosMin',${n})">${n===0?'Todos':n+'+'}</button>`).join('')}
+          </div>
+        </div>
+        <div class="filter-group">
+          <span class="flabel">Preço máximo</span>
+          <input type="range" id="f-preco" min="1000" max="${maxPreco}" step="1000" oninput="setPreco(this.value)" />
+          <div class="range-val" id="f-preco-val"></div>
+        </div>
+      </aside>
+      <div>
+        ${resultados.length ? `<div class="grid">${resultados.map(cardHTML).join('')}</div>` : `<div class="empty">Nenhum imóvel encontrado com esses filtros.<br><br><button class="btn btn-ghost" onclick="resetFiltros()">Limpar filtros</button></div>`}
+      </div>
+    </div>
+  `;
+}
+
+function setFiltro(k, v) { filtroState[k] = v; render(); }
+function setFiltroNum(k, v) { filtroState[k] = v; render(); }
+function setPreco(v) { filtroState.precoMax = Number(v); render(); }
+function resetFiltros() { filtroState = { finalidade:'', tipo:'', quartosMin:0, precoMax:null }; location.hash = '#/busca'; }
+
+function viewImovel(id) {
+  const im = IMOVEIS.find(i => i.id === Number(id));
+  if (!im) return `<div class="empty">Imóvel não encontrado. <a href="#/busca">Voltar à busca</a></div>`;
+  const per = im.finalidade === 'aluguel' ? '<span class="per">/mês</span>' : '';
+  const iniciais = im.bairro.slice(0,2).toUpperCase();
+  return `
+    <a class="back-link" onclick="history.back()">← Voltar</a>
+    <div class="detail-hero">${thumbSVG(im, true)}</div>
+    <div class="detail-layout">
+      <div>
+        <div class="detail-top">
+          <div>
+            <h1 class="detail-title">${im.titulo}</h1>
+            <div class="detail-addr">${im.bairro}, ${im.cidade}</div>
+          </div>
+          <span class="badge ${im.finalidade}" style="position:static">${im.finalidade==='venda'?'Venda':'Aluguel'}</span>
+        </div>
+        <div class="detail-price">${fmtPreco(im.preco, im.finalidade)}${per}</div>
+
+        <div class="feature-grid" style="margin-top:1.6rem">
+          <div class="feature-tile"><div class="n">${im.quartos}</div><div class="l">Quartos</div></div>
+          <div class="feature-tile"><div class="n">${im.banheiros}</div><div class="l">Banheiros</div></div>
+          <div class="feature-tile"><div class="n">${im.vagas}</div><div class="l">Vagas</div></div>
+          <div class="feature-tile"><div class="n">${im.area}m²</div><div class="l">Área</div></div>
+        </div>
+
+        <div class="desc"><p>${im.desc}</p></div>
+
+        <div class="amenities">${im.amenities.map(a=>`<span class="amenity">${a}</span>`).join('')}</div>
+      </div>
+
+      <div class="contact-card">
+        <div class="agent">
+          <div class="av">${iniciais}</div>
+          <div>
+            <div class="name">Corretor Malb Imóveis</div>
+            <div class="role">CRECI 000000-F (exemplo)</div>
+          </div>
+        </div>
+        <form onsubmit="event.preventDefault(); showToast('Mensagem enviada (simulação) — em breve o corretor entra em contato.'); this.reset();">
+          <input placeholder="Seu nome" required />
+          <input placeholder="Telefone ou e-mail" required />
+          <textarea placeholder="Tenho interesse neste imóvel...">Olá! Tenho interesse no imóvel "${im.titulo}" em ${im.bairro}.</textarea>
+          <button class="btn btn-primary" type="submit">Enviar interesse</button>
+        </form>
+        <div class="disclaimer">Formulário de demonstração — nenhuma mensagem é enviada de verdade nesta fase do protótipo.</div>
+      </div>
+    </div>
+  `;
+}
+
+/* ===================== router ===================== */
+function render() {
+  const hash = location.hash.replace(/^#\/?/, '');
+  const [path, qs] = hash.split('?');
+  const params = new URLSearchParams(qs || '');
+  const app = document.getElementById('app');
+
+  document.querySelectorAll('#mainnav a').forEach(a => a.classList.remove('active'));
+
+  if (!path || path === '/') {
+    app.innerHTML = viewHome();
+    document.querySelector('[data-nav="home"]')?.classList.add('active');
+  } else if (path === 'busca') {
+    app.innerHTML = viewBusca(params);
+    const f = params.get('finalidade');
+    if (f === 'venda') document.querySelector('[data-nav="venda"]')?.classList.add('active');
+    else if (f === 'aluguel') document.querySelector('[data-nav="aluguel"]')?.classList.add('active');
+  } else if (path.startsWith('imovel/')) {
+    app.innerHTML = viewImovel(path.split('/')[1]);
+  } else {
+    app.innerHTML = `<div class="empty">Página não encontrada. <a href="#/">Voltar ao início</a></div>`;
+  }
+  window.scrollTo({ top: 0, behavior: 'instant' });
+}
+
+document.addEventListener('click', (e) => {
+  const card = e.target.closest('[data-goto]');
+  if (card) location.hash = '#/' + card.dataset.goto;
+});
+
+window.addEventListener('hashchange', render);
+render();
+
+/* ---- theme toggle (persist only in-memory, no storage per artifact rules) ---- */
+let manualTheme = null;
+document.getElementById('theme-toggle').addEventListener('click', () => {
+  const root = document.documentElement;
+  const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+  const current = root.getAttribute('data-theme') || (prefersDark ? 'dark' : 'light');
+  manualTheme = current === 'dark' ? 'light' : 'dark';
+  root.setAttribute('data-theme', manualTheme);
+});
+</script>

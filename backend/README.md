@@ -48,6 +48,7 @@ Ver `docs/API.md` para a referência completa. Resumo:
 | POST | `/api/auth/logout` | sim | Encerra a sessão |
 | GET | `/api/auth/me` | sim | Dados do usuário logado |
 | GET | `/api/health` | não | Health check |
+| GET | `/sitemap.xml` | não | Sitemap gerado a partir dos imóveis ativos (Fase 3 — SEO) |
 
 Autenticação: enviar `Authorization: Bearer <token>` (token obtido no login, sessão válida por 7 dias).
 
@@ -72,3 +73,5 @@ backend/
 ## Testado
 
 Suite manual de ponta a ponta rodada nesta sessão: health check, CRUD completo de imóveis (criar/listar/filtrar/editar/excluir), autenticação (login certo/errado, rotas protegidas retornando 401 sem token), criação de lead público e listagem autenticada — todos os fluxos confirmados funcionando via `curl` e depois via navegador (Playwright), incluindo o fluxo completo pelo painel: criar imóvel → aparece na busca pública; enviar lead pelo site → aparece no painel.
+
+**Fase 3 (sessão seguinte):** ordenação e filtros novos (`orderBy`, `areaMin`/`areaMax`) testados via `curl`; migração automática de bancos antigos sem as colunas `lat`/`lng` testada isoladamente (`ALTER TABLE` condicional); fluxo completo de favoritos (favoritar num card, ver em `favoritos.html`, desfavoritar) e criação de imóvel com latitude/longitude pelo painel testados via Playwright. O carregamento do mapa em si (biblioteca Leaflet via CDN) não pôde ser testado nesta sessão porque o ambiente de desenvolvimento não tem acesso geral à internet — o *fallback* ("mapa indisponível") foi confirmado funcionando; vale conferir o mapa carregando de fato ao rodar na sua máquina.

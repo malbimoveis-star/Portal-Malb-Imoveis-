@@ -217,6 +217,37 @@ tr:last-child td { border-bottom: none; }
 
 .chave-box { display: block; background: var(--surface-2); border: 1px solid var(--border-strong); border-radius: 10px; padding: 0.8rem 1rem; margin: 0.8rem 0; font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace; font-size: 0.85rem; color: var(--ink); word-break: break-all; user-select: all; }
 
+/* Fase 5 — funil de leads (Kanban) */
+.funil-board { display: grid; grid-template-columns: repeat(4, minmax(220px, 1fr)); gap: 0.9rem; align-items: start; overflow-x: auto; padding-bottom: 0.4rem; }
+.funil-col { background: var(--surface-2); border-radius: 12px; padding: 0.7rem; display: flex; flex-direction: column; gap: 0.6rem; min-width: 220px; }
+.funil-col-head { display: flex; align-items: center; justify-content: space-between; padding: 0 0.2rem; font-size: 0.82rem; font-weight: 700; color: var(--ink-soft); text-transform: uppercase; letter-spacing: .03em; }
+.funil-count { background: var(--surface); border: 1px solid var(--border-strong); border-radius: 999px; padding: 0.05rem 0.55rem; font-size: 0.75rem; font-variant-numeric: tabular-nums; }
+.funil-col-body { display: flex; flex-direction: column; gap: 0.55rem; min-height: 40px; }
+.funil-vazio { color: var(--ink-faint); font-size: 0.8rem; text-align: center; padding: 1rem 0; margin: 0; }
+.lead-card { display: block; width: 100%; text-align: left; background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 0.65rem 0.75rem; cursor: pointer; font: inherit; color: inherit; box-shadow: var(--shadow); transition: border-color .15s; }
+.lead-card:hover { border-color: var(--accent); }
+.lead-card-nome { font-weight: 700; font-size: 0.9rem; }
+.lead-card-imovel { font-size: 0.8rem; color: var(--ink-soft); margin-top: 0.15rem; }
+.lead-card-footer { display: flex; align-items: center; justify-content: space-between; gap: 0.4rem; margin-top: 0.55rem; }
+.lead-corretor-badge { font-size: 0.72rem; font-weight: 600; color: var(--accent2); background: var(--accent2-soft); border-radius: 999px; padding: 0.1rem 0.5rem; }
+.lead-corretor-badge.sem-corretor { color: var(--ink-faint); background: var(--surface-2); }
+.lead-card-data { font-size: 0.72rem; color: var(--ink-faint); white-space: nowrap; }
+
+/* Fase 5 — modal de detalhe do lead */
+.lead-info p { margin: 0 0 0.4rem; font-size: 0.88rem; }
+.lead-info p:last-child { margin-bottom: 0; }
+.timeline { display: flex; flex-direction: column; gap: 0.6rem; margin-top: 0.6rem; max-height: 220px; overflow-y: auto; padding-right: 0.2rem; }
+.timeline-item { display: flex; gap: 0.6rem; align-items: flex-start; }
+.timeline-icone { flex-shrink: 0; width: 26px; height: 26px; border-radius: 50%; background: var(--surface-2); display: flex; align-items: center; justify-content: center; font-size: 0.85rem; }
+.timeline-corpo { flex: 1; }
+.timeline-texto { font-size: 0.86rem; }
+.timeline-meta { font-size: 0.72rem; color: var(--ink-faint); margin-top: 0.1rem; }
+#form-nota-lead textarea { border: 1px solid var(--border-strong); border-radius: 8px; padding: 0.5rem 0.6rem; background: var(--surface); color: var(--ink); font: inherit; font-size: 0.88rem; }
+
+@media (max-width: 880px) {
+  .funil-board { grid-template-columns: 1fr; }
+}
+
 @media (max-width: 880px) {
   .searchbar { grid-template-columns: 1fr; }
   .stats-row { grid-template-columns: repeat(2,1fr); }

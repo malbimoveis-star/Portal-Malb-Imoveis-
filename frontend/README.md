@@ -2,9 +2,9 @@
 
 Site público (busca, listagem, página de imóvel) e painel do corretor.
 
-**Status:** Fases 2 e 3 concluídas — site real conectado à API, com busca avançada, favoritos, mapa e SEO.
+**Status:** Fases 2, 3 e 4 concluídas — site real conectado à API, com busca avançada, favoritos, mapa, SEO e o painel de integração com CRMs parceiros.
 
-## `site/` — site real (Fases 2 e 3, conectado à API)
+## `site/` — site real (Fases 2, 3 e 4, conectado à API)
 
 Site público + painel do corretor, em HTML/CSS/JS puro, que consome a API real em `backend/`:
 
@@ -12,7 +12,9 @@ Site público + painel do corretor, em HTML/CSS/JS puro, que consome a API real 
 - `site/busca.html` — busca com filtros (finalidade, tipo, quartos, bairro, preço, área) e ordenação
 - `site/imovel.html?id=N` — página de imóvel, com mapa (Leaflet/OpenStreetMap), botão de favoritar, formulário de interesse que grava um lead de verdade, e título/meta tags dinâmicos para SEO
 - `site/favoritos.html` — imóveis favoritados, salvos no navegador de quem visita (sem precisar de login)
-- `site/admin/login.html` e `site/admin/index.html` — painel do corretor (login, CRUD de imóveis incluindo latitude/longitude, lista de leads)
+- `site/admin/login.html` e `site/admin/index.html` — painel do corretor (login, CRUD de imóveis incluindo latitude/longitude, lista de leads, e a aba "Parceiros (CRMs)" para gerir a integração da Fase 4: criar parceiros, gerar/regenerar chave de API, ver o selo "via parceiro" nos imóveis importados e o log de entregas de webhook)
+- `site/docs.html` — documentação interativa da API (Swagger UI, carregado via CDN) a partir de `site/openapi.yaml`
+- `site/openapi.yaml` — especificação OpenAPI 3.0 de toda a API, incluindo as rotas de integração com parceiros (`/api/v1/parceiros/*`)
 - `site/robots.txt` — o `sitemap.xml` referenciado nele é gerado dinamicamente pelo backend (não é um arquivo estático aqui)
 
 **Como abrir:** não precisa de nenhum bundler nem `npm install`. Rode o backend (`node backend/src/server.js`) e acesse `http://localhost:3001` — ele já serve estes arquivos.

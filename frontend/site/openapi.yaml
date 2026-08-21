@@ -3,8 +3,9 @@ info:
   title: Portal Malb Imóveis — API
   version: "1.0.0"
   description: |
-    API do Portal Malb Imóveis: cadastro e busca de imóveis, leads, painel
-    interno (CRM) e a API de integração com CRMs parceiros (Fase 4).
+    API do Portal Malb Imóveis: cadastro e busca de imóveis, o funil de leads
+    e a equipe do CRM interno (Fase 5), e a API de integração com CRMs
+    parceiros (Fase 4).
 
     Há dois grupos de rotas com contratos diferentes:
 
@@ -40,9 +41,11 @@ tags:
   - name: Imóveis
     description: Busca e cadastro de imóveis (site público + painel)
   - name: Leads
-    description: Contatos de interesse enviados pelo site público
+    description: Funil de atendimento (Fase 5) — contatos de interesse enviados pelo site público
   - name: Autenticação
     description: Login do painel do corretor (sessão)
+  - name: Equipe
+    description: Gestão de usuários com login no painel (Fase 5) — admin gerencia, qualquer autenticado consulta
   - name: Parceiros (painel)
     description: Gestão de parceiros CRM pelo corretor, no painel interno
   - name: Parceiros (API v1)
@@ -128,6 +131,30 @@ components:
         contato: { type: string, description: "Telefone ou e-mail informado pelo interessado" }
         mensagem: { type: string }
         status: { type: string, enum: [novo, em_atendimento, convertido, perdido] }
+        corretorId: { type: integer, nullable: true, description: "Usuário (corretor) responsável pelo atendimento, ou null se não atribuído" }
+        createdAt: { type: string, format: date-time }
+
+    LeadInteracao:
+      type: object
+      description: Uma entrada na linha do tempo de atendimento de um lead — automática (sistema, mudança de status, atribuição) ou uma nota manual do corretor.
+      properties:
+        id: { type: integer }
+        leadId: { type: integer }
+        userId: { type: integer, nullable: true }
+        userNome: { type: string, nullable: true, description: "null para entradas geradas pelo sistema (ex: lead recebido)" }
+        tipo: { type: string, enum: [sistema, status, atribuicao, nota] }
+        texto: { type: string }
+        createdAt: { type: string, format: date-time }
+
+    Usuario:
+      type: object
+      properties:
+        id: { type: integer }
+        nome: { type: string }
+        email: { type: string, format: email }
+        creci: { type: string, nullable: true }
+        papel: { type: string, enum: [admin, corretor] }
+        ativo: { type: boolean }
         createdAt: { type: string, format: date-time }
 
     Parceiro:
@@ -155,7 +182,7 @@ components:
       type: object
       properties:
         id: { type: integer }
-        evento: { type: string, enum: [lead.criado, imovel.atualizado, teste] }
+        evento: { type: string, enum: [lead.criado, lead.atualizado, imovel.atualizado, teste] }
         sucesso: { type: boolean }
         statusHttp: { type: integer, nullable: true }
         erro: { type: string, nullable: true }
@@ -168,7 +195,7 @@ components:
         via header `X-Malb-Signature: sha256=<hmac hex>` (HMAC-SHA256 sobre o
         corpo JSON bruto, usando o `webhookSecret` do parceiro).
       properties:
-        evento: { type: string, enum: [lead.criado, imovel.atualizado, teste] }
+        evento: { type: string, enum: [lead.criado, lead.atualizado, imovel.atualizado, teste] }
         dados: { type: object, description: "Payload específico do evento (um Lead para lead.criado, um Imovel para imovel.atualizado)" }
 
     Erro:
@@ -335,7 +362,16 @@ paths:
     get:
       tags: [Leads]
       summary: Listar leads (painel do corretor)
+      description: Alimenta o funil Kanban do painel. Filtros combináveis via query string.
       security: [{ sessionAuth: [] }]
+      parameters:
+        - name: status
+          in: query
+          schema: { type: string, enum: [novo, em_atendimento, convertido, perdido] }
+        - name: corretorId
+          in: query
+          schema: { type: integer }
+          description: Retorna só os leads atribuídos a esse corretor
       responses:
         '200':
           description: Lista de leads
@@ -349,9 +385,34 @@ paths:
         '401': { description: Não autenticado }
 
   /leads/{id}:
+    get:
+      tags: [Leads]
+      summary: Detalhe de um lead
+      security: [{ sessionAuth: [] }]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: integer }
+      responses:
+        '200':
+          description: Lead encontrado
+          content:
+            application/json:
+              schema:
+                type: object
+                properties: { data: { $ref: '#/components/schemas/Lead' } }
+        '401': { description: Não autenticado }
+        '404': { description: Não encontrado }
     put:
       tags: [Leads]
-      summary: Atualizar status de um lead (painel do corretor)
+      summary: Atualizar status e/ou atribuição de um lead (painel do corretor)
+      description: |
+        Atualização parcial — campo omitido não é alterado. Mudar `status` ou
+        `corretorId` gera automaticamente uma entrada na linha do tempo do
+        lead (`GET /leads/{id}/interacoes`), atribuída a quem fez a chamada.
+        Se o lead for de um imóvel de parceiro e o `status` mudar, o parceiro
+        recebe um webhook `lead.atualizado`.
       security: [{ sessionAuth: [] }]
       parameters:
         - name: id
@@ -365,6 +426,7 @@ paths:
               type: object
               properties:
                 status: { type: string, enum: [novo, em_atendimento, convertido, perdido] }
+                corretorId: { type: integer, nullable: true, description: "Número para atribuir a um corretor ativo, null para remover a atribuição" }
       responses:
         '200':
           description: Lead atualizado
@@ -373,7 +435,162 @@ paths:
               schema:
                 type: object
                 properties: { data: { $ref: '#/components/schemas/Lead' } }
+        '400': { description: "status inválido, ou corretorId de um usuário inexistente/inativo" }
         '401': { description: Não autenticado }
+        '404': { description: Não encontrado }
+
+  /leads/{id}/interacoes:
+    get:
+      tags: [Leads]
+      summary: Linha do tempo de atendimento do lead
+      description: Mais antiga primeiro — recebimento, mudanças de status, atribuições e notas manuais, na ordem em que aconteceram.
+      security: [{ sessionAuth: [] }]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: integer }
+      responses:
+        '200':
+          description: Linha do tempo
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: { type: array, items: { $ref: '#/components/schemas/LeadInteracao' } }
+                  total: { type: integer }
+        '401': { description: Não autenticado }
+        '404': { description: Não encontrado }
+    post:
+      tags: [Leads]
+      summary: Registrar uma nota manual no atendimento do lead
+      security: [{ sessionAuth: [] }]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: integer }
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [texto]
+              properties:
+                texto: { type: string, example: "Liguei às 14h, cliente vai confirmar até amanhã." }
+      responses:
+        '201':
+          description: Nota registrada
+          content:
+            application/json:
+              schema:
+                type: object
+                properties: { data: { $ref: '#/components/schemas/LeadInteracao' } }
+        '400': { description: "texto ausente ou vazio" }
+        '401': { description: Não autenticado }
+        '404': { description: Não encontrado }
+
+  /usuarios:
+    get:
+      tags: [Equipe]
+      summary: Listar a equipe (quem tem login no painel)
+      description: Liberado para qualquer usuário autenticado — usado para montar o seletor de corretor ao atribuir um lead.
+      security: [{ sessionAuth: [] }]
+      responses:
+        '200':
+          description: Lista de usuários
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: { type: array, items: { $ref: '#/components/schemas/Usuario' } }
+                  total: { type: integer }
+        '401': { description: Não autenticado }
+    post:
+      tags: [Equipe]
+      summary: Criar um novo login (admin)
+      security: [{ sessionAuth: [] }]
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [nome, email, senha]
+              properties:
+                nome: { type: string }
+                email: { type: string, format: email }
+                senha: { type: string, format: password, minLength: 6 }
+                creci: { type: string, nullable: true }
+                papel: { type: string, enum: [admin, corretor], default: corretor }
+      responses:
+        '201':
+          description: Usuário criado
+          content:
+            application/json:
+              schema:
+                type: object
+                properties: { data: { $ref: '#/components/schemas/Usuario' } }
+        '400': { description: "payload inválido (nome/email/senha ausentes, ou senha curta)" }
+        '401': { description: Não autenticado }
+        '403': { description: "usuário autenticado não é admin" }
+        '409': { description: "e-mail já cadastrado" }
+
+  /usuarios/{id}:
+    put:
+      tags: [Equipe]
+      summary: Atualizar um usuário (admin)
+      description: |
+        Atualização parcial: `nome`, `email`, `creci`, `papel`, `ativo`,
+        `senha` (opcional — só troca se enviada). Desativar deslogar a conta
+        imediatamente. Bloqueia rebaixar ou desativar o último admin ativo.
+      security: [{ sessionAuth: [] }]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: integer }
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                nome: { type: string }
+                email: { type: string, format: email }
+                creci: { type: string, nullable: true }
+                papel: { type: string, enum: [admin, corretor] }
+                ativo: { type: boolean }
+                senha: { type: string, format: password, minLength: 6 }
+      responses:
+        '200':
+          description: Usuário atualizado
+          content:
+            application/json:
+              schema:
+                type: object
+                properties: { data: { $ref: '#/components/schemas/Usuario' } }
+        '400': { description: "removeria o último admin ativo, ou senha curta" }
+        '401': { description: Não autenticado }
+        '403': { description: "usuário autenticado não é admin" }
+        '404': { description: Não encontrado }
+        '409': { description: "e-mail já em uso por outro usuário" }
+    delete:
+      tags: [Equipe]
+      summary: Excluir um usuário (admin)
+      description: Leads atribuídos a esse usuário ficam sem corretor responsável (não são apagados).
+      security: [{ sessionAuth: [] }]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: integer }
+      responses:
+        '204': { description: Excluído }
+        '400': { description: "autoexclusão, ou é o último admin ativo" }
+        '401': { description: Não autenticado }
+        '403': { description: "usuário autenticado não é admin" }
         '404': { description: Não encontrado }
 
   /auth/login:
@@ -401,9 +618,15 @@ paths:
                     type: object
                     properties:
                       token: { type: string }
-                      nome: { type: string }
-                      email: { type: string }
-        '401': { description: Credenciais inválidas }
+                      user:
+                        type: object
+                        properties:
+                          id: { type: integer }
+                          nome: { type: string }
+                          email: { type: string }
+                          creci: { type: string, nullable: true }
+                          papel: { type: string, enum: [admin, corretor] }
+        '401': { description: "Credenciais inválidas, ou usuário desativado" }
 
   /auth/logout:
     post:
@@ -429,8 +652,12 @@ paths:
                   data:
                     type: object
                     properties:
+                      id: { type: integer }
                       nome: { type: string }
                       email: { type: string }
+                      creci: { type: string, nullable: true }
+                      papel: { type: string, enum: [admin, corretor] }
+                      ativo: { type: boolean }
         '401': { description: Não autenticado }
 
   /parceiros:

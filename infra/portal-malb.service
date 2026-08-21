@@ -1,0 +1,45 @@
+# Portal Malb Imóveis — unidade systemd (Fase 6)
+#
+# Alternativa ao Docker para quem prefere rodar direto num VPS Linux comum
+# (ex: Ubuntu), sem container: o systemd cuida de subir o processo no boot
+# e reiniciá-lo se ele cair.
+#
+# Instalação (como root, no servidor):
+#   1. Instale o Node 22+ (ex: via nodesource ou nvm para o usuário "malb").
+#   2. Clone o repositório em /opt/portal-malb-imoveis.
+#   3. Copie backend/.env.example para backend/.env e ajuste os valores
+#      (ALLOWED_ORIGIN com o domínio real, NODE_ENV=production etc).
+#   4. sudo cp infra/portal-malb.service /etc/systemd/system/
+#   5. sudo systemctl daemon-reload
+#   6. sudo systemctl enable --now portal-malb
+#   7. Configure um proxy reverso com HTTPS na frente (Caddy é o mais simples
+#      de instalar direto no host: `caddy reverse-proxy --from
+#      malbimoveis.com.br --to localhost:3001` já resolve o certificado
+#      sozinho) — ver docs/DEPLOY.md.
+#
+# Ver logs:      sudo journalctl -u portal-malb -f
+# Reiniciar:      sudo systemctl restart portal-malb
+# Rodar backup:   sudo -u malb node /opt/portal-malb-imoveis/backend/scripts/backup-db.js
+
+[Unit]
+Description=Portal Malb Imoveis — API + site
+After=network.target
+
+[Service]
+Type=simple
+User=malb
+Group=malb
+WorkingDirectory=/opt/portal-malb-imoveis/backend
+EnvironmentFile=/opt/portal-malb-imoveis/backend/.env
+ExecStart=/usr/bin/node src/server.js
+Restart=on-failure
+RestartSec=5
+
+# Hardening básico do processo — nenhum acesso além do que o app precisa.
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ReadWritePaths=/opt/portal-malb-imoveis/backend/data
+
+[Install]
+WantedBy=multi-user.target

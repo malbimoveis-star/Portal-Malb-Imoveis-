@@ -1,0 +1,23 @@
+# Portal Malb Imóveis — configuração do Caddy (Fase 6)
+#
+# O Caddy emite e renova o certificado HTTPS automaticamente via Let's
+# Encrypt para o domínio abaixo, assim que o DNS estiver apontando para este
+# servidor — não precisa configurar certbot nem renovar nada manualmente.
+# {$SITE_DOMAIN} vem da variável de ambiente definida no infra/.env.
+
+{$SITE_DOMAIN} {
+	reverse_proxy app:3001
+
+	encode gzip
+
+	log {
+		output stdout
+		format console
+	}
+}
+
+# Redireciona também o "www." para o domínio principal, se o DNS estiver
+# configurado para ambos. Remova este bloco se não for usar o "www.".
+www.{$SITE_DOMAIN} {
+	redir https://{$SITE_DOMAIN}{uri} permanent
+}

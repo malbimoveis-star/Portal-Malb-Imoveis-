@@ -1,0 +1,57 @@
+# Portal Malb Imóveis — stack de produção (Fase 6)
+#
+# Dois serviços:
+#   app   — o servidor Node (backend/src/server.js), com o banco SQLite num
+#           volume persistente.
+#   caddy — proxy reverso na frente, que expõe as portas 80/443 e cuida do
+#           certificado HTTPS automaticamente (Let's Encrypt), sem precisar
+#           configurar certbot/nginx na mão. Só precisa de um domínio
+#           apontando (DNS tipo A) para o IP deste servidor.
+#
+# Uso (a partir da raiz do repositório):
+#   cp backend/.env.example infra/.env   # e ajuste ALLOWED_ORIGIN/domínio
+#   docker compose -f infra/docker-compose.yml --env-file infra/.env up -d --build
+#
+# Ver docs/DEPLOY.md para o passo a passo completo (DNS, primeiro deploy,
+# backups, rollback).
+
+services:
+  app:
+    build:
+      context: ..
+      dockerfile: infra/Dockerfile
+    restart: unless-stopped
+    environment:
+      NODE_ENV: production
+      PORT: 3001
+      DB_PATH: /data/malb.db
+      ALLOWED_ORIGIN: ${ALLOWED_ORIGIN:-*}
+      TRUST_PROXY: "true" # o Caddy é quem fala com a internet; o app confia no X-Forwarded-For dele
+      RATE_LIMIT_LOGIN_WINDOW_MS: ${RATE_LIMIT_LOGIN_WINDOW_MS:-900000}
+      RATE_LIMIT_LOGIN_MAX: ${RATE_LIMIT_LOGIN_MAX:-10}
+      RATE_LIMIT_LEAD_WINDOW_MS: ${RATE_LIMIT_LEAD_WINDOW_MS:-3600000}
+      RATE_LIMIT_LEAD_MAX: ${RATE_LIMIT_LEAD_MAX:-20}
+    volumes:
+      - malb_data:/data
+    expose:
+      - "3001"
+
+  caddy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    depends_on:
+      - app
+    ports:
+      - "80:80"
+      - "443:443"
+    environment:
+      SITE_DOMAIN: ${SITE_DOMAIN:?defina SITE_DOMAIN no .env, ex: malbimoveis.com.br}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+
+volumes:
+  malb_data:   # banco SQLite — sobrevive a `docker compose up --build`
+  caddy_data:  # certificados HTTPS emitidos pelo Let's Encrypt
+  caddy_config:

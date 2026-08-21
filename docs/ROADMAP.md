@@ -31,7 +31,7 @@ O cronograma abaixo é organizado por **fases com entregas verificáveis**, não
 | **Fase 3 — Busca e experiência pública** | Concluída (MVP) | Filtros avançados, mapa, favoritos, formulário de leads, SEO das páginas de imóvel — ver ressalva abaixo sobre o mapa |
 | **Fase 4 — API de integração com CRMs** | Concluída (MVP) | Import/export de imóveis (XML/JSON), webhooks, documentação da API (Swagger/OpenAPI), autenticação de parceiros — ver ressalvas abaixo |
 | **Fase 5 — CRM interno** | Concluída (MVP) | Gestão de leads, funil de atendimento, atribuição a corretores — ver detalhes abaixo |
-| **Fase 6 — Publicação** | 1–2 semanas | Testes, performance, domínio e deploy em produção |
+| **Fase 6 — Publicação** | Concluída (parte de infraestrutura) | Hardening de produção e artefatos de deploy prontos — ver ressalva abaixo sobre domínio/hospedagem e migração de stack |
 | **Fase 7 — Evolução contínua** | Contínua | Novas integrações, ajustes por feedback real de uso |
 
 **Estimativa total até o lançamento (Fases 1–6): 10–12 semanas**, considerando ciclos de revisão semanais. Esse prazo é o de um projeto sendo construído e revisado por uma pessoa; ele encurta se houver revisões mais frequentes e alonga se o escopo crescer no meio do caminho — por isso cada fase termina com uma entrega concreta para aprovar antes de seguir.
@@ -87,18 +87,36 @@ O cronograma abaixo é organizado por **fases com entregas verificáveis**, não
 - [x] Se o lead é de um imóvel de parceiro (Fase 4) e o status muda, o parceiro recebe um novo webhook `lead.atualizado` — mesmo padrão de assinatura HMAC dos outros eventos
 - [x] Testado de ponta a ponta: 24 verificações automatizadas cobrindo criação/edição/exclusão de usuários, a trava do último admin, bloqueio de acesso por papel (corretor não cria usuário) e por conta desativada (login bloqueado e sessão já aberta invalidada na hora), atribuição e mudança de status de lead com o histórico gerado corretamente, filtro por corretor, e o webhook `lead.atualizado` disparando e chegando assinado; a interface (quadro Kanban, modal do lead com linha do tempo, aba Equipe) foi testada visualmente e funcionalmente via Playwright, com screenshot conferido
 
+**Fase 6 — Publicação (hardening de produção e infraestrutura):**
+- [x] Variáveis de ambiente de produção (`backend/.env.example`): domínio permitido no CORS, rate limiting, ambiente, caminho do banco — carregadas nativamente via `node --env-file` (sem precisar de nenhum pacote de npm)
+- [x] Cabeçalhos de segurança em toda resposta (`X-Content-Type-Options`, `X-Frame-Options`, `Referrer-Policy`, `Permissions-Policy`, `Strict-Transport-Security` quando a conexão chega via HTTPS)
+- [x] Rate limiting nos dois endpoints públicos sem autenticação (`POST /api/auth/login` e `POST /api/leads`), por IP, com resposta `429` + `Retry-After`
+- [x] CORS restrito por variável de ambiente em produção (permissivo só em desenvolvimento, como antes)
+- [x] Desligamento gracioso (`SIGTERM`/`SIGINT`): termina as requisições em andamento e fecha o banco antes de sair, para atualizações de versão não cortarem uma escrita no meio
+- [x] Backup do banco SQLite (`backend/scripts/backup-db.js`, via `VACUUM INTO`, sem depender de nenhum binário externo) com retenção configurável, pensado para rodar via cron
+- [x] Artefatos de deploy: `Dockerfile` + `docker-compose.yml` com proxy reverso Caddy (HTTPS automático via Let's Encrypt), e uma unidade `systemd` como alternativa sem Docker
+- [x] Guia de publicação passo a passo (`docs/DEPLOY.md`): provisionar servidor, DNS, primeiro deploy, dados iniciais, backups, monitoramento, atualização e rollback
+- [x] Testado: cabeçalhos de segurança, CORS restrito, HSTS condicional a HTTPS, os dois rate limiters (independentes entre si) disparando `429` no limite certo, desligamento gracioso, script de backup (conteúdo do backup conferido contra o banco original, e a retenção removendo os mais antigos corretamente); a lógica exata do `Dockerfile` (caminhos, variáveis de ambiente, healthcheck) foi validada simulando a mesma estrutura de diretórios do container — ver ressalva abaixo sobre o build do Docker em si
+
+**Ressalvas importantes sobre a Fase 6:**
+1. **A migração para NestJS + Prisma + PostgreSQL + Next.js (a stack de produção proposta neste roadmap) não foi feita.** O ambiente onde esta fase foi construída bloqueia o acesso ao registro do npm (`npm install` de qualquer pacote retorna 403), então não seria possível instalar, rodar nem testar de verdade um projeto nessa stack — e entregar uma reescrita completa (autenticação, permissões, funil de leads, webhooks assinados) sem poder testá-la contradiria o cuidado que todas as fases anteriores tiveram. Em vez disso, esta fase deixou a stack atual (Node puro + SQLite, testada em todas as fases desde a Fase 2) pronta para produção de verdade. O modelo de dados e os contratos de API continuam desenhados para que essa migração, feita num ambiente com acesso normal ao npm, seja uma troca de camada — não uma reescrita.
+2. **Domínio e hospedagem continuam por sua conta** (ver "Decisões pendentes" abaixo) — comprar um domínio, contratar um servidor e inserir dados de pagamento não são ações que esta sessão pode fazer por você. O que foi preparado (Docker/systemd + `docs/DEPLOY.md`) funciona com qualquer VPS Linux comum, assim que você tiver os dois.
+3. **O build da imagem Docker em si não pôde ser executado nesta sessão** — o daemon do Docker não roda neste ambiente de desenvolvimento (mesma limitação de sandbox aninhado). O `Dockerfile` foi revisado linha a linha e sua lógica de runtime (estrutura de diretórios, variáveis de ambiente, comando de healthcheck) foi validada simulando manualmente a mesma estrutura fora do Docker — mas vale rodar `docker compose build` de verdade na primeira vez que for publicar, para conferir.
+
 ## 5. Decisões pendentes (precisamos da sua confirmação)
 
-1. **Stack técnica** — confirmar NestJS + Prisma + PostgreSQL para produção (a Fase 2 atual roda em Node puro + SQLite por limitação do ambiente, ver seção 4).
-2. **Domínio** — qual será o domínio do portal (ex: `malbimoveis.com.br`)? Necessário para a Fase 6 (publicação).
+1. **Stack técnica** — confirmar NestJS + Prisma + PostgreSQL para produção. A stack atual (Node puro + SQLite) já está pronta para produção (Fase 6), mas continua sendo uma implementação alternativa por falta de acesso ao npm no ambiente onde o projeto foi construído — a migração de framework fica pendente de um ambiente com esse acesso (ver `infra/README.md`).
+2. **Domínio** — qual será o domínio do portal (ex: `malbimoveis.com.br`)? Necessário para publicar de fato (`docs/DEPLOY.md`).
 3. ~~**Identidade visual**~~ — ✅ definida: logo e paleta azul/verde da Malb já aplicadas.
 4. **Dados iniciais** — continuar com os imóveis de exemplo, ou já existe uma planilha/CRM para importar imóveis reais?
 5. **CRM de referência para a API** — se você já usa algum CRM imobiliário hoje (ex: Vista, União, JetImóveis), me diga qual: a API da Fase 4 já está funcionando com um formato próprio (JSON e XML, documentado em `docs/API.md`), mas se o seu CRM exigir um formato específico de importação, ajusto o feed para o schema exato dele.
-6. **Hospedagem/deploy** — provedor já contratado, ou seguir a recomendação (Vercel + Railway/AWS)? Necessário para a Fase 6.
+6. **Hospedagem** — provedor já contratado, ou segue a recomendação de `docs/DEPLOY.md` (qualquer VPS Linux comum: DigitalOcean, Hetzner, AWS Lightsail etc, ou Railway/Render se preferir algo gerenciado)? Necessário para publicar.
 
 ## 6. Próximos passos sugeridos
 
-Com as Fases 2, 3, 4 e 5 prontas, a ordem natural é:
+Com as Fases 2, 3, 4, 5 e a parte de infraestrutura da Fase 6 prontas, a ordem natural é:
 
 1. Você testar o site, a busca, o painel do corretor (funil de leads e aba Equipe) e a aba Parceiros (CRMs) no ambiente local (`node backend/src/server.js` → `http://localhost:3001`), conferir se o mapa e o Swagger UI (`/docs.html`) carregam normalmente na sua conexão, cadastrar os corretores de verdade da imobiliária (trocando a senha do usuário demo) e apontar o que precisa ajustar.
-2. Fase 6 — migrar para a stack de produção (NestJS/Prisma/PostgreSQL/Next.js) e publicar de fato, o que depende das decisões 1, 2 e 6 acima.
+2. Decidir domínio e hospedagem (decisões 2 e 6 acima) e seguir `docs/DEPLOY.md` para publicar de fato — o código e os artefatos de deploy já estão prontos, só falta essa parte que só você pode decidir/contratar.
+3. Quando houver um ambiente de desenvolvimento com acesso normal ao npm (sua máquina, por exemplo), retomar a migração para NestJS/Prisma/PostgreSQL/Next.js (decisão 1 acima) — o modelo de dados e os contratos de API já estão prontos para isso, então é uma troca de camada, não uma reescrita.
+4. Fase 7 — evolução contínua: novas integrações e ajustes a partir do uso real, depois de publicado.

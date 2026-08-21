@@ -4,6 +4,14 @@ Base URL local: `http://localhost:3001/api`
 
 Todas as respostas são JSON. Erros seguem o formato `{ "error": "mensagem", "detalhes": [...] }` (campo `detalhes` só aparece em erros de validação).
 
+## Produção (Fase 6)
+
+Em produção, o comportamento da API é ajustado por variáveis de ambiente (ver `backend/.env.example`, e o passo a passo de publicação em `docs/DEPLOY.md`):
+
+- **CORS** (`ALLOWED_ORIGIN`): em desenvolvimento aceita chamadas do navegador vindas de qualquer origem (`*`); em produção, normalmente restrito ao domínio do site.
+- **Rate limiting**: `POST /api/auth/login` e `POST /api/leads` (os dois únicos endpoints públicos, sem autenticação) têm limite de tentativas por IP numa janela de tempo — ver detalhes nas seções **Autenticação** e **Leads** abaixo. Ao exceder o limite, a resposta é `429 { "error": "..." }` com um cabeçalho `Retry-After` (segundos até poder tentar de novo). As demais rotas exigem sessão (`Authorization: Bearer`) ou chave de API de parceiro (`X-Api-Key`), o que já limita o abuso anônimo.
+- **Cabeçalhos de segurança**: toda resposta inclui `X-Content-Type-Options`, `X-Frame-Options`, `Referrer-Policy` e `Permissions-Policy`; `Strict-Transport-Security` é adicionado quando a conexão chega via HTTPS (atrás do proxy reverso descrito em `docs/DEPLOY.md`).
+
 ## Autenticação
 
 `POST /api/auth/login`
@@ -18,6 +26,8 @@ Todas as respostas são JSON. Erros seguem o formato `{ "error": "mensagem", "de
 ```
 
 Use o token nas rotas protegidas: header `Authorization: Bearer <token>`. Sessões expiram em 7 dias ou até `POST /api/auth/logout`.
+
+**Rate limiting (Fase 6):** por padrão, no máximo 10 tentativas de login por IP a cada 15 minutos (ajustável via `RATE_LIMIT_LOGIN_MAX`/`RATE_LIMIT_LOGIN_WINDOW_MS`). Passou do limite → `429`.
 
 Desde a Fase 5, cada usuário tem um `papel` (`admin` ou `corretor`) e um `ativo`. Um usuário desativado não consegue logar — e se for desativado enquanto já está logado, a sessão dele para de valer na próxima requisição (não precisa esperar o token de 7 dias expirar). Só `admin` pode gerenciar a equipe (ver **Equipe** abaixo); `corretor` pode ver a lista de colegas, atender leads e ver/editar imóveis normalmente.
 
@@ -62,6 +72,8 @@ O funil de atendimento (Fase 5) vive nestas rotas: todo lead tem um `status` (`n
 
 ### `POST /api/leads`
 Público — usado pelo formulário "Enviar interesse" na página do imóvel. Campos obrigatórios: `nome`, `contato`. Opcionais: `imovelId`, `mensagem`. Ao ser criado, o lead já ganha uma primeira entrada na timeline (`tipo: "sistema"`, "Lead recebido pelo site.").
+
+**Rate limiting (Fase 6):** por padrão, no máximo 20 leads por IP a cada hora (ajustável via `RATE_LIMIT_LEAD_MAX`/`RATE_LIMIT_LEAD_WINDOW_MS`) — protege contra spam automatizado no formulário público. Passou do limite → `429`.
 
 ### `GET /api/leads` 🔒
 Lista leads, mais recentes primeiro. Filtros opcionais via query string: `status` (um dos quatro valores do funil) e `corretorId` (leads atribuídos a um corretor específico) — usados pelo funil Kanban do painel.

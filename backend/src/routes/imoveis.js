@@ -18,6 +18,8 @@ function rowToImovel(row) {
     descricao: row.descricao,
     amenities: JSON.parse(row.amenities || '[]'),
     foto: row.foto,
+    lat: row.lat,
+    lng: row.lng,
     status: row.status,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
@@ -52,6 +54,8 @@ function registerImoveisRoutes(router) {
     if (query.tipo) { clauses.push('tipo = ?'); args.push(query.tipo); }
     if (query.quartosMin) { clauses.push('quartos >= ?'); args.push(Number(query.quartosMin)); }
     if (query.precoMax) { clauses.push('preco <= ?'); args.push(Number(query.precoMax)); }
+    if (query.areaMin) { clauses.push('area >= ?'); args.push(Number(query.areaMin)); }
+    if (query.areaMax) { clauses.push('area <= ?'); args.push(Number(query.areaMax)); }
     if (query.cidade) { clauses.push('cidade = ?'); args.push(query.cidade); }
     if (query.bairro) { clauses.push('bairro = ?'); args.push(query.bairro); }
     if (query.q) {
@@ -66,8 +70,16 @@ function registerImoveisRoutes(router) {
       clauses.push("status = 'disponivel'");
     }
 
+    const ORDENS = {
+      recentes: 'created_at DESC',
+      preco_asc: 'preco ASC',
+      preco_desc: 'preco DESC',
+      area_desc: 'area DESC',
+    };
+    const orderBy = ORDENS[query.orderBy] || ORDENS.recentes;
+
     const where = clauses.length ? `WHERE ${clauses.join(' AND ')}` : '';
-    const rows = db.prepare(`SELECT * FROM imoveis ${where} ORDER BY created_at DESC`).all(...args);
+    const rows = db.prepare(`SELECT * FROM imoveis ${where} ORDER BY ${orderBy}`).all(...args);
     res.json(200, { data: rows.map(rowToImovel), total: rows.length });
   });
 
@@ -83,12 +95,14 @@ function registerImoveisRoutes(router) {
     if (erros.length) return res.json(400, { error: 'Payload inválido', detalhes: erros });
 
     const info = db.prepare(`
-      INSERT INTO imoveis (tipo, finalidade, preco, titulo, bairro, cidade, quartos, banheiros, vagas, area, descricao, amenities, foto, status)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      INSERT INTO imoveis (tipo, finalidade, preco, titulo, bairro, cidade, quartos, banheiros, vagas, area, descricao, amenities, foto, lat, lng, status)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `).run(
       body.tipo, body.finalidade, Number(body.preco), body.titulo, body.bairro, body.cidade,
       Number(body.quartos || 0), Number(body.banheiros || 0), Number(body.vagas || 0), Number(body.area || 0),
       body.descricao || '', JSON.stringify(body.amenities || []), body.foto || '',
+      body.lat != null && body.lat !== '' ? Number(body.lat) : null,
+      body.lng != null && body.lng !== '' ? Number(body.lng) : null,
       body.status || 'disponivel'
     );
     const row = db.prepare('SELECT * FROM imoveis WHERE id = ?').get(info.lastInsertRowid);
@@ -105,12 +119,14 @@ function registerImoveisRoutes(router) {
     if (erros.length) return res.json(400, { error: 'Payload inválido', detalhes: erros });
 
     db.prepare(`
-      UPDATE imoveis SET tipo=?, finalidade=?, preco=?, titulo=?, bairro=?, cidade=?, quartos=?, banheiros=?, vagas=?, area=?, descricao=?, amenities=?, foto=?, status=?, updated_at=datetime('now')
+      UPDATE imoveis SET tipo=?, finalidade=?, preco=?, titulo=?, bairro=?, cidade=?, quartos=?, banheiros=?, vagas=?, area=?, descricao=?, amenities=?, foto=?, lat=?, lng=?, status=?, updated_at=datetime('now')
       WHERE id = ?
     `).run(
       merged.tipo, merged.finalidade, Number(merged.preco), merged.titulo, merged.bairro, merged.cidade,
       Number(merged.quartos || 0), Number(merged.banheiros || 0), Number(merged.vagas || 0), Number(merged.area || 0),
       merged.descricao || '', JSON.stringify(merged.amenities || []), merged.foto || '',
+      merged.lat != null && merged.lat !== '' ? Number(merged.lat) : null,
+      merged.lng != null && merged.lng !== '' ? Number(merged.lng) : null,
       merged.status || 'disponivel', Number(params.id)
     );
     const row = db.prepare('SELECT * FROM imoveis WHERE id = ?').get(Number(params.id));

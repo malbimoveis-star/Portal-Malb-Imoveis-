@@ -6,7 +6,7 @@ Referência funcional e de estrutura: [vivareal.com.br](https://www.vivareal.com
 
 ## Status
 
-Projeto em fase de planejamento e fundação (Fase 1). Veja o roadmap completo em [`docs/ROADMAP.md`](docs/ROADMAP.md).
+Fase 1 (Fundação) em andamento. Primeiro protótipo navegável disponível em [`frontend/prototipo.html`](frontend/prototipo.html) — home, busca com filtros e página de imóvel, com dados fictícios (ainda sem backend real). Veja o roadmap completo em [`docs/ROADMAP.md`](docs/ROADMAP.md).
 
 ## Estrutura do repositório
 

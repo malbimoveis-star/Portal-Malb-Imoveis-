@@ -306,7 +306,10 @@
         </div>
         <div class="field span2">
           <label id="u-senha-label">Senha</label>
-          <input type="password" id="u-senha" minlength="6" placeholder="Mínimo 6 caracteres">
+          <div class="campo-senha">
+            <input type="password" id="u-senha" minlength="6" placeholder="Mínimo 6 caracteres">
+            <button type="button" class="btn-toggle-senha" data-toggle-senha="u-senha" tabindex="-1"></button>
+          </div>
         </div>
         <div class="field span2" id="u-ativo-campo" style="display:none;">
           <label style="display:flex;align-items:center;gap:.5rem;font-weight:400;">
@@ -325,6 +328,7 @@
 <script src="../assets/app.js"></script>
 <script>
 document.getElementById('topbar').innerHTML = topbarHTML('', '../');
+ligarTogglesSenha();
 
 if (!getToken()) window.location.href = 'login.html';
 

@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Imóvel — Portal Malb Imóveis</title>
+<link rel="stylesheet" href="assets/app.css">
+</head>
+<body>
+<div id="topbar"></div>
+
+<main id="conteudo">
+  <p style="color:var(--ink-faint);margin-top:2rem;">Carregando imóvel…</p>
+</main>
+
+<div id="footer"></div>
+
+<script src="assets/app.js"></script>
+<script>
+document.getElementById('topbar').innerHTML = topbarHTML('');
+document.getElementById('footer').innerHTML = footerHTML();
+
+const id = new URLSearchParams(window.location.search).get('id');
+
+async function carregar() {
+  if (!id) {
+    document.getElementById('conteudo').innerHTML = '<p style="margin-top:2rem;">Imóvel não especificado. <a href="busca.html">Voltar para a busca</a>.</p>';
+    return;
+  }
+  try {
+    const { data: im } = await api('/imoveis/' + id);
+    document.title = im.titulo + ' — Portal Malb Imóveis';
+    const per = im.finalidade === 'aluguel' ? '<span style="font-size:.8rem;font-weight:500;color:var(--ink-faint);">/mês</span>' : '';
+    const iniciais = (im.bairro || '?').slice(0, 2).toUpperCase();
+
+    document.getElementById('conteudo').innerHTML = `
+      <a href="busca.html" class="btn btn-ghost" style="margin:1.4rem 0;">&larr; Voltar</a>
+      <div class="detail-hero">${im.foto ? `<img src="${im.foto}" alt="Foto ilustrativa do imóvel">` : ''}</div>
+
+      <div class="detail-layout">
+        <div>
+          <div style="display:flex;align-items:center;gap:.8rem;flex-wrap:wrap;">
+            <h1 style="font-size:1.7rem;">${im.titulo}</h1>
+            <span class="badge ${im.finalidade}" style="position:static;display:inline-block;">${im.finalidade === 'venda' ? 'Venda' : 'Aluguel'}</span>
+          </div>
+          <p style="color:var(--ink-faint);margin:.4rem 0 1rem;">${im.bairro}, ${im.cidade}</p>
+          <div class="price" style="font-size:1.8rem;font-weight:700;">${fmtPreco(im.preco, im.finalidade)}${per}</div>
+
+          <div class="feature-grid">
+            <div class="feature-tile"><div class="num">${im.quartos}</div><div class="label">Quartos</div></div>
+            <div class="feature-tile"><div class="num">${im.banheiros}</div><div class="label">Banheiros</div></div>
+            <div class="feature-tile"><div class="num">${im.vagas}</div><div class="label">Vagas</div></div>
+            <div class="feature-tile"><div class="num">${im.area}m²</div><div class="label">Área</div></div>
+          </div>
+
+          <p>${im.descricao || ''}</p>
+
+          ${im.amenities && im.amenities.length ? `
+            <h3 style="font-size:1.1rem;margin-top:1.6rem;">Comodidades</h3>
+            <div class="amenity-list">${im.amenities.map(a => `<span class="amenity">${a}</span>`).join('')}</div>
+          ` : ''}
+        </div>
+
+        <div class="contact-card">
+          <div class="agent">
+            <div class="av">${iniciais}</div>
+            <div>
+              <div style="font-weight:600;">Corretor Malb Imóveis</div>
+              <div class="creci">CRECI 000000-F (exemplo)</div>
+            </div>
+          </div>
+          <form class="form-stack" id="form-lead">
+            <input type="text" name="nome" placeholder="Seu nome" required>
+            <input type="text" name="contato" placeholder="Telefone ou e-mail" required>
+            <textarea name="mensagem" rows="3" placeholder="Mensagem">Olá! Tenho interesse no imóvel "${im.titulo}" em ${im.bairro}.</textarea>
+            <button type="submit" class="btn btn-primary">Enviar interesse</button>
+          </form>
+        </div>
+      </div>
+    `;
+
+    document.getElementById('form-lead').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const form = e.target;
+      const btn = form.querySelector('button');
+      btn.disabled = true; btn.textContent = 'Enviando…';
+      try {
+        await api('/leads', { method: 'POST', body: {
+          imovelId: im.id,
+          nome: form.nome.value,
+          contato: form.contato.value,
+          mensagem: form.mensagem.value,
+        }});
+        showToast('Interesse enviado! O corretor vai entrar em contato.');
+        form.reset();
+      } catch (err) {
+        showToast('Não foi possível enviar: ' + err.message);
+      } finally {
+        btn.disabled = false; btn.textContent = 'Enviar interesse';
+      }
+    });
+  } catch (err) {
+    document.getElementById('conteudo').innerHTML = `<p style="margin-top:2rem;color:var(--danger);">Imóvel não encontrado ou servidor indisponível (${err.message}). <a href="busca.html">Voltar para a busca</a>.</p>`;
+  }
+}
+carregar();
+</script>
+</body>
+</html>

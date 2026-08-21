@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Portal Malb Imóveis</title>
+<link rel="stylesheet" href="assets/app.css">
+</head>
+<body>
+<div id="topbar"></div>
+
+<main>
+  <section class="hero">
+    <h1>Encontre o imóvel certo, sem complicação</h1>
+    <p class="sub">Busque, compare e fale direto com o corretor — tudo em um só lugar.</p>
+    <form class="searchbar" id="form-busca">
+      <div class="field">
+        <label for="q">Cidade ou bairro</label>
+        <input type="text" id="q" name="q" placeholder="Ex: Vila Mariana, São Paulo">
+      </div>
+      <div class="field">
+        <label for="tipo">Tipo</label>
+        <select id="tipo" name="tipo">
+          <option value="">Todos</option>
+          <option>Apartamento</option>
+          <option>Casa</option>
+          <option>Studio</option>
+          <option>Cobertura</option>
+          <option>Sala Comercial</option>
+          <option>Terreno</option>
+          <option>Kitnet</option>
+        </select>
+      </div>
+      <div class="field">
+        <label for="finalidade">Finalidade</label>
+        <select id="finalidade" name="finalidade">
+          <option value="">Comprar ou alugar</option>
+          <option value="venda">Comprar</option>
+          <option value="aluguel">Alugar</option>
+        </select>
+      </div>
+      <button type="submit" class="btn btn-primary">Buscar</button>
+    </form>
+
+    <div class="stats-row" id="stats"></div>
+  </section>
+
+  <div class="section-head">
+    <h2>Imóveis em destaque</h2>
+    <a href="busca.html" class="btn btn-ghost">Ver todos</a>
+  </div>
+  <div class="grid" id="destaques">
+    <p style="color:var(--ink-faint)">Carregando imóveis…</p>
+  </div>
+</main>
+
+<div id="footer"></div>
+
+<script src="assets/app.js"></script>
+<script>
+document.getElementById('topbar').innerHTML = topbarHTML('home');
+document.getElementById('footer').innerHTML = footerHTML();
+
+document.getElementById('form-busca').addEventListener('submit', (e) => {
+  e.preventDefault();
+  const params = new URLSearchParams();
+  const q = document.getElementById('q').value.trim();
+  const tipo = document.getElementById('tipo').value;
+  const finalidade = document.getElementById('finalidade').value;
+  if (q) params.set('q', q);
+  if (tipo) params.set('tipo', tipo);
+  if (finalidade) params.set('finalidade', finalidade);
+  window.location.href = 'busca.html?' + params.toString();
+});
+
+async function carregar() {
+  try {
+    const [todos, venda, aluguel] = await Promise.all([
+      api('/imoveis'),
+      api('/imoveis?finalidade=venda'),
+      api('/imoveis?finalidade=aluguel'),
+    ]);
+    const bairros = new Set(todos.data.map(i => i.bairro));
+    document.getElementById('stats').innerHTML = `
+      <div class="stat-tile"><div class="num">${todos.total}</div><div class="label">imóveis no portal</div></div>
+      <div class="stat-tile"><div class="num">${bairros.size}</div><div class="label">bairros atendidos</div></div>
+      <div class="stat-tile"><div class="num">${venda.total}</div><div class="label">para comprar</div></div>
+      <div class="stat-tile"><div class="num">${aluguel.total}</div><div class="label">para alugar</div></div>
+    `;
+    const destaques = todos.data.slice(0, 6);
+    document.getElementById('destaques').innerHTML = destaques.length
+      ? destaques.map(cardHTML).join('')
+      : '<p style="color:var(--ink-faint)">Nenhum imóvel disponível no momento.</p>';
+  } catch (err) {
+    document.getElementById('destaques').innerHTML = `<p style="color:var(--danger)">Não foi possível carregar os imóveis: ${err.message}. Verifique se o servidor (\`node backend/src/server.js\`) está rodando.</p>`;
+  }
+}
+carregar();
+</script>
+</body>
+</html>

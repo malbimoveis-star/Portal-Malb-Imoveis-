@@ -1,0 +1,134 @@
+'use strict';
+
+/**
+ * Camada de banco de dados do Portal Malb Imóveis.
+ *
+ * Usa `node:sqlite` (nativo do Node.js, sem dependências de npm) para que a API
+ * rode com um único comando (`node src/server.js`), sem precisar de `npm install`
+ * nem de um servidor de banco de dados separado.
+ *
+ * Migração futura: o modelo de dados aqui foi desenhado para mapear 1:1 com o
+ * schema Prisma/PostgreSQL descrito em `docs/ARQUITETURA.md`, então trocar o
+ * banco por PostgreSQL (via Prisma) mais adiante é uma troca desta camada,
+ * sem precisar mexer nas rotas ou no restante da aplicação.
+ */
+
+const path = require('node:path');
+const fs = require('node:fs');
+const crypto = require('node:crypto');
+const { DatabaseSync } = require('node:sqlite');
+
+const DATA_DIR = path.join(__dirname, '..', 'data');
+const DB_PATH = path.join(DATA_DIR, 'malb.db');
+const SEED_PATH = path.join(DATA_DIR, 'seed-imoveis.json');
+
+if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true });
+
+const db = new DatabaseSync(DB_PATH);
+db.exec('PRAGMA journal_mode = WAL;');
+db.exec('PRAGMA foreign_keys = ON;');
+
+db.exec(`
+  CREATE TABLE IF NOT EXISTS imoveis (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    tipo TEXT NOT NULL,
+    finalidade TEXT NOT NULL CHECK (finalidade IN ('venda','aluguel')),
+    preco REAL NOT NULL,
+    titulo TEXT NOT NULL,
+    bairro TEXT NOT NULL,
+    cidade TEXT NOT NULL,
+    quartos INTEGER NOT NULL DEFAULT 0,
+    banheiros INTEGER NOT NULL DEFAULT 0,
+    vagas INTEGER NOT NULL DEFAULT 0,
+    area REAL NOT NULL DEFAULT 0,
+    descricao TEXT NOT NULL DEFAULT '',
+    amenities TEXT NOT NULL DEFAULT '[]',
+    foto TEXT NOT NULL DEFAULT '',
+    status TEXT NOT NULL DEFAULT 'disponivel' CHECK (status IN ('disponivel','reservado','vendido','alugado')),
+    created_at TEXT NOT NULL DEFAULT (datetime('now')),
+    updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+  );
+
+  CREATE TABLE IF NOT EXISTS leads (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    imovel_id INTEGER REFERENCES imoveis(id) ON DELETE SET NULL,
+    nome TEXT NOT NULL,
+    contato TEXT NOT NULL,
+    mensagem TEXT NOT NULL DEFAULT '',
+    status TEXT NOT NULL DEFAULT 'novo' CHECK (status IN ('novo','em_atendimento','convertido','perdido')),
+    created_at TEXT NOT NULL DEFAULT (datetime('now'))
+  );
+
+  CREATE TABLE IF NOT EXISTS users (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    nome TEXT NOT NULL,
+    email TEXT NOT NULL UNIQUE,
+    creci TEXT,
+    senha_hash TEXT NOT NULL,
+    senha_salt TEXT NOT NULL,
+    created_at TEXT NOT NULL DEFAULT (datetime('now'))
+  );
+
+  CREATE TABLE IF NOT EXISTS sessions (
+    token TEXT PRIMARY KEY,
+    user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    created_at TEXT NOT NULL DEFAULT (datetime('now')),
+    expires_at TEXT NOT NULL
+  );
+`);
+
+function hashPassword(password, salt = crypto.randomBytes(16).toString('hex')) {
+  const hash = crypto.scryptSync(password, salt, 64).toString('hex');
+  return { hash, salt };
+}
+
+function seedIfEmpty() {
+  const { count } = db.prepare('SELECT COUNT(*) AS count FROM imoveis').get();
+  if (count === 0 && fs.existsSync(SEED_PATH)) {
+    const seed = JSON.parse(fs.readFileSync(SEED_PATH, 'utf8'));
+    const insert = db.prepare(`
+      INSERT INTO imoveis (tipo, finalidade, preco, titulo, bairro, cidade, quartos, banheiros, vagas, area, descricao, amenities, foto)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `);
+    const insertMany = db.transaction ? null : null; // node:sqlite não tem helper de transação de alto nível ainda
+    db.exec('BEGIN');
+    try {
+      for (const im of seed) {
+        insert.run(
+          im.tipo,
+          im.finalidade,
+          im.preco,
+          im.titulo,
+          im.bairro,
+          im.cidade,
+          im.quartos,
+          im.banheiros,
+          im.vagas,
+          im.area,
+          im.desc || '',
+          JSON.stringify(im.amenities || []),
+          im.foto || ''
+        );
+      }
+      db.exec('COMMIT');
+    } catch (err) {
+      db.exec('ROLLBACK');
+      throw err;
+    }
+    console.log(`[seed] ${seed.length} imóveis inseridos.`);
+  }
+
+  const { count: userCount } = db.prepare('SELECT COUNT(*) AS count FROM users').get();
+  if (userCount === 0) {
+    const { hash, salt } = hashPassword('malb2026');
+    db.prepare(`
+      INSERT INTO users (nome, email, creci, senha_hash, senha_salt)
+      VALUES (?, ?, ?, ?, ?)
+    `).run('Corretor Malb (demo)', 'admin@malbimoveis.com', '000000-F (exemplo)', hash, salt);
+    console.log('[seed] Usuário demo criado: admin@malbimoveis.com / malb2026 (troque antes de ir a produção).');
+  }
+}
+
+seedIfEmpty();
+
+module.exports = { db, hashPassword };

@@ -17,6 +17,9 @@ function login(email, password) {
   const user = db.prepare('SELECT * FROM users WHERE email = ?').get(email);
   if (!user) return null;
   if (!verifyPassword(password, user.senha_salt, user.senha_hash)) return null;
+  // Usuário desativado (ex: corretor que saiu da imobiliária) não consegue
+  // logar, mesmo com a senha certa — mesmo padrão do "ativo" dos parceiros.
+  if (!user.ativo) return null;
 
   const token = crypto.randomBytes(32).toString('hex');
   const expiresAt = new Date(Date.now() + SESSION_TTL_MS).toISOString();
@@ -25,7 +28,10 @@ function login(email, password) {
     user.id,
     expiresAt
   );
-  return { token, user: { id: user.id, nome: user.nome, email: user.email, creci: user.creci } };
+  return {
+    token,
+    user: { id: user.id, nome: user.nome, email: user.email, creci: user.creci, papel: user.papel },
+  };
 }
 
 function logout(token) {
@@ -40,8 +46,12 @@ function getUserFromToken(token) {
     db.prepare('DELETE FROM sessions WHERE token = ?').run(token);
     return null;
   }
-  const user = db.prepare('SELECT id, nome, email, creci FROM users WHERE id = ?').get(session.user_id);
-  return user || null;
+  const user = db.prepare('SELECT id, nome, email, creci, papel, ativo FROM users WHERE id = ?').get(session.user_id);
+  // Sessão de um usuário que foi desativado depois do login para de valer
+  // imediatamente — evita que um corretor desligado continue com acesso
+  // só porque o token de 7 dias ainda não expirou.
+  if (!user || !user.ativo) return null;
+  return user;
 }
 
 function requireAuth(req) {

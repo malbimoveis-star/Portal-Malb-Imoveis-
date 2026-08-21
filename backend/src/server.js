@@ -29,6 +29,7 @@ const { registerImoveisRoutes } = require('./routes/imoveis');
 const { registerLeadsRoutes } = require('./routes/leads');
 const { registerAuthRoutes } = require('./routes/auth');
 const { registerParceirosRoutes } = require('./routes/parceiros');
+const { registerUsuariosRoutes } = require('./routes/usuarios');
 const { db } = require('./db');
 
 const PORT = process.env.PORT || 3001;
@@ -53,6 +54,7 @@ registerImoveisRoutes(router);
 registerLeadsRoutes(router);
 registerAuthRoutes(router);
 registerParceirosRoutes(router);
+registerUsuariosRoutes(router);
 
 function sendJson(res, status, payload) {
   if (payload === null) {

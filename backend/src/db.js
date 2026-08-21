@@ -98,6 +98,15 @@ db.exec(`
     erro TEXT,
     created_at TEXT NOT NULL DEFAULT (datetime('now'))
   );
+
+  CREATE TABLE IF NOT EXISTS lead_interacoes (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    lead_id INTEGER NOT NULL REFERENCES leads(id) ON DELETE CASCADE,
+    user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+    tipo TEXT NOT NULL DEFAULT 'nota',
+    texto TEXT NOT NULL,
+    created_at TEXT NOT NULL DEFAULT (datetime('now'))
+  );
 `);
 
 // Migração leve: adiciona colunas novas em bancos já existentes (criados antes
@@ -107,13 +116,27 @@ function garantirColuna(tabela, coluna, definicao) {
   const cols = db.prepare(`SELECT name FROM pragma_table_info(?)`).all(tabela);
   if (!cols.some((c) => c.name === coluna)) {
     db.exec(`ALTER TABLE ${tabela} ADD COLUMN ${coluna} ${definicao}`);
+    return true;
   }
+  return false;
 }
 garantirColuna('imoveis', 'lat', 'REAL');
 garantirColuna('imoveis', 'lng', 'REAL');
 garantirColuna('imoveis', 'origem', "TEXT NOT NULL DEFAULT 'proprio'");
 garantirColuna('imoveis', 'parceiro_id', 'INTEGER REFERENCES parceiros(id) ON DELETE SET NULL');
 garantirColuna('imoveis', 'referencia_externa', 'TEXT');
+
+// Fase 5 — CRM interno: papel/ativo em users (para distinguir admin de
+// corretor e permitir desativar acesso sem apagar histórico), e atribuição
+// de leads a um corretor. Bancos já existentes (Fases 2-4) tinham só um
+// usuário — a migração abaixo promove esse usuário a admin automaticamente
+// (só roda quando a coluna 'papel' está sendo criada agora, uma vez só).
+const papelColunaNova = garantirColuna('users', 'papel', "TEXT NOT NULL DEFAULT 'corretor'");
+garantirColuna('users', 'ativo', 'INTEGER NOT NULL DEFAULT 1');
+if (papelColunaNova) {
+  db.exec("UPDATE users SET papel = 'admin' WHERE id = (SELECT MIN(id) FROM users)");
+}
+garantirColuna('leads', 'corretor_id', 'INTEGER REFERENCES users(id) ON DELETE SET NULL');
 
 function hashPassword(password, salt = crypto.randomBytes(16).toString('hex')) {
   const hash = crypto.scryptSync(password, salt, 64).toString('hex');
@@ -162,8 +185,8 @@ function seedIfEmpty() {
   if (userCount === 0) {
     const { hash, salt } = hashPassword('malb2026');
     db.prepare(`
-      INSERT INTO users (nome, email, creci, senha_hash, senha_salt)
-      VALUES (?, ?, ?, ?, ?)
+      INSERT INTO users (nome, email, creci, senha_hash, senha_salt, papel)
+      VALUES (?, ?, ?, ?, ?, 'admin')
     `).run('Corretor Malb (demo)', 'admin@malbimoveis.com', '000000-F (exemplo)', hash, salt);
     console.log('[seed] Usuário demo criado: admin@malbimoveis.com / malb2026 (troque antes de ir a produção).');
   }

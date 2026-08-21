@@ -29,7 +29,7 @@ O cronograma abaixo é organizado por **fases com entregas verificáveis**, não
 | **Fase 1 — Fundação** | Concluída | Design system, protótipo navegável (home, busca, listagem, detalhe do imóvel) com dados de exemplo |
 | **Fase 2 — Backend core** | Concluída (MVP) | API REST de imóveis (CRUD), autenticação, banco de dados real, painel do corretor — ver ressalva abaixo sobre a stack |
 | **Fase 3 — Busca e experiência pública** | Concluída (MVP) | Filtros avançados, mapa, favoritos, formulário de leads, SEO das páginas de imóvel — ver ressalva abaixo sobre o mapa |
-| **Fase 4 — API de integração com CRMs** | 2 semanas | Import/export de imóveis (XML/JSON), webhooks, documentação da API (Swagger/OpenAPI), autenticação de parceiros |
+| **Fase 4 — API de integração com CRMs** | Concluída (MVP) | Import/export de imóveis (XML/JSON), webhooks, documentação da API (Swagger/OpenAPI), autenticação de parceiros — ver ressalvas abaixo |
 | **Fase 5 — CRM interno** | 2 semanas | Gestão de leads, funil de atendimento, atribuição a corretores |
 | **Fase 6 — Publicação** | 1–2 semanas | Testes, performance, domínio e deploy em produção |
 | **Fase 7 — Evolução contínua** | Contínua | Novas integrações, ajustes por feedback real de uso |
@@ -63,20 +63,34 @@ O cronograma abaixo é organizado por **fases com entregas verificáveis**, não
 
 **Ressalva importante sobre a Fase 3:** o mapa usa a biblioteca Leaflet carregada de um CDN público (`unpkg.com`), então precisa de acesso normal à internet no navegador de quem visita o site — não precisa de chave de API nem custo, mas não funciona em redes totalmente bloqueadas. Testei o carregamento e o *fallback* (mensagem "mapa indisponível" quando o CDN não responde), mas não consegui testar o mapa renderizado de fato nesta sessão porque o ambiente onde construí o projeto não tem acesso geral à internet — vale conferir visualmente ao abrir o site na sua máquina. As coordenadas dos 12 imóveis de exemplo são aproximadas (uma por bairro), não o endereço exato.
 
+**Fase 4 — API de integração com CRMs parceiros:**
+- [x] Modelo de dados: parceiros (chave de API com hash, `webhookUrl`/`webhookSecret`), rastreamento de origem dos imóveis (`origem`, `parceiroId`, `referenciaExterna`), log de entregas de webhook
+- [x] Autenticação de parceiros por chave de API (header `X-Api-Key`, chave `malb_...` armazenada com hash SHA-256, nunca em texto puro)
+- [x] Exportação de imóveis ativos para o parceiro (`GET /api/v1/parceiros/imoveis` em JSON e `.xml` em feed XML próprio)
+- [x] Importação/atualização de imóveis pelo parceiro, com upsert por `referenciaExterna` (`POST` e `DELETE /api/v1/parceiros/imoveis`)
+- [x] Webhooks assinados (HMAC-SHA256, header `X-Malb-Signature`) para `lead.criado` e `imovel.atualizado`, mais um evento `teste` para o parceiro validar a integração
+- [x] Painel do corretor: aba "Parceiros (CRMs)" para criar/editar/excluir parceiros, gerar e regenerar chave de API, ver o selo "via parceiro" nos imóveis importados, e consultar o log de entregas de webhook
+- [x] Documentação interativa da API (OpenAPI 3.0 em `frontend/site/openapi.yaml`, navegável em `/docs.html` via Swagger UI) — ver ressalva abaixo
+- [x] Testado de ponta a ponta: parceiro → chave → exportação (JSON e XML) → importação com upsert → webhook disparado por lead e por mudança de status → assinatura HMAC verificada de forma independente → log de entregas → regeneração de chave → desativação bloqueando acesso
+
+**Ressalvas importantes sobre a Fase 4:**
+1. **Entrega de webhook é *best-effort*, sem fila de retry** — uma única tentativa, timeout de 5s. Se o endpoint do parceiro estiver fora do ar no momento do disparo, a entrega falha e não é reenviada automaticamente (fica registrada como falha no log, mas o parceiro pode perder o evento). Uma fila de retry com backoff é uma melhoria natural para uma fase futura, mas ficou fora do escopo deste MVP.
+2. **O formato XML do feed (`imoveis.xml`) é um formato próprio da Malb**, inspirado em convenções comuns de feeds do mercado imobiliário — não é uma cópia do schema proprietário de nenhum portal real, porque o ambiente onde este projeto foi construído não tinha acesso à internet para consultar a especificação exata de nenhum concorrente. Se um CRM parceiro específico exigir um formato diferente (ex: o schema de algum provedor de feeds já usado no mercado), isso é um ajuste direcionado, não uma reconstrução.
+3. **O Swagger UI em `/docs.html` carrega a biblioteca de um CDN público** (`cdnjs.cloudflare.com`), mesma lógica do mapa da Fase 3 — funciona com acesso normal à internet no navegador, mas não pôde ser testado visualmente nesta sessão pela mesma limitação de rede. A especificação em si (`openapi.yaml`) foi validada (YAML bem-formado, 16 rotas documentadas) e pode ser baixada e aberta em qualquer ferramenta OpenAPI mesmo se o Swagger UI não carregar.
+
 ## 5. Decisões pendentes (precisamos da sua confirmação)
 
 1. **Stack técnica** — confirmar NestJS + Prisma + PostgreSQL para produção (a Fase 2 atual roda em Node puro + SQLite por limitação do ambiente, ver seção 4).
 2. **Domínio** — qual será o domínio do portal (ex: `malbimoveis.com.br`)? Necessário para a Fase 6 (publicação).
 3. ~~**Identidade visual**~~ — ✅ definida: logo e paleta azul/verde da Malb já aplicadas.
 4. **Dados iniciais** — continuar com os imóveis de exemplo, ou já existe uma planilha/CRM para importar imóveis reais?
-5. **CRM de referência para a API** — se você já usa algum CRM imobiliário hoje (ex: Vista, União, JetImóveis), isso define o formato prioritário da Fase 4 (import/export).
+5. **CRM de referência para a API** — se você já usa algum CRM imobiliário hoje (ex: Vista, União, JetImóveis), me diga qual: a API da Fase 4 já está funcionando com um formato próprio (JSON e XML, documentado em `docs/API.md`), mas se o seu CRM exigir um formato específico de importação, ajusto o feed para o schema exato dele.
 6. **Hospedagem/deploy** — provedor já contratado, ou seguir a recomendação (Vercel + Railway/AWS)? Necessário para a Fase 6.
 
 ## 6. Próximos passos sugeridos
 
-Com as Fases 2 e 3 prontas, a ordem natural é:
+Com as Fases 2, 3 e 4 prontas, a ordem natural é:
 
-1. Você testar o site, a busca e o painel do corretor no ambiente local (`node backend/src/server.js` → `http://localhost:3001`), conferir se o mapa carrega normalmente na sua conexão, e apontar o que precisa ajustar.
-2. Fase 4 — API de integração com CRMs parceiros (import/export, webhooks, documentação Swagger/OpenAPI pública).
-3. Fase 5 — CRM interno mais completo (funil de atendimento, atribuição de leads a corretores).
-4. Fase 6 — migrar para a stack de produção (NestJS/Prisma/PostgreSQL/Next.js) e publicar de fato, o que depende das decisões 1, 2 e 6 acima.
+1. Você testar o site, a busca, o painel do corretor e a aba Parceiros (CRMs) no ambiente local (`node backend/src/server.js` → `http://localhost:3001`), conferir se o mapa e o Swagger UI (`/docs.html`) carregam normalmente na sua conexão, e apontar o que precisa ajustar.
+2. Fase 5 — CRM interno mais completo (funil de atendimento, atribuição de leads a corretores).
+3. Fase 6 — migrar para a stack de produção (NestJS/Prisma/PostgreSQL/Next.js) e publicar de fato, o que depende das decisões 1, 2 e 6 acima.

@@ -2,16 +2,18 @@
 
 Site público (busca, listagem, página de imóvel) e painel do corretor.
 
-**Status:** Fase 2 em andamento — site real conectado à API.
+**Status:** Fases 2 e 3 concluídas — site real conectado à API, com busca avançada, favoritos, mapa e SEO.
 
-## `site/` — site real (Fase 2, conectado à API)
+## `site/` — site real (Fases 2 e 3, conectado à API)
 
 Site público + painel do corretor, em HTML/CSS/JS puro, que consome a API real em `backend/`:
 
 - `site/index.html` — home, com estatísticas e destaques vindos do banco de dados de verdade
-- `site/busca.html` — busca com filtros (finalidade, tipo, quartos, preço)
-- `site/imovel.html?id=N` — página de imóvel, com formulário de interesse que grava um lead de verdade
-- `site/admin/login.html` e `site/admin/index.html` — painel do corretor (login, CRUD de imóveis, lista de leads)
+- `site/busca.html` — busca com filtros (finalidade, tipo, quartos, bairro, preço, área) e ordenação
+- `site/imovel.html?id=N` — página de imóvel, com mapa (Leaflet/OpenStreetMap), botão de favoritar, formulário de interesse que grava um lead de verdade, e título/meta tags dinâmicos para SEO
+- `site/favoritos.html` — imóveis favoritados, salvos no navegador de quem visita (sem precisar de login)
+- `site/admin/login.html` e `site/admin/index.html` — painel do corretor (login, CRUD de imóveis incluindo latitude/longitude, lista de leads)
+- `site/robots.txt` — o `sitemap.xml` referenciado nele é gerado dinamicamente pelo backend (não é um arquivo estático aqui)
 
 **Como abrir:** não precisa de nenhum bundler nem `npm install`. Rode o backend (`node backend/src/server.js`) e acesse `http://localhost:3001` — ele já serve estes arquivos.
 

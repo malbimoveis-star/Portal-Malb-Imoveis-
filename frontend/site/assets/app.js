@@ -19,6 +19,25 @@ function clearToken() {
   try { localStorage.removeItem('malb_admin_token'); } catch {}
 }
 
+/* Favoritos: guardados só no navegador de quem está visitando (localStorage),
+   sem precisar de login. Cada visitante tem sua própria lista. */
+const FAVORITOS_KEY = 'malb_favoritos';
+
+function getFavoritos() {
+  try { return JSON.parse(localStorage.getItem(FAVORITOS_KEY) || '[]'); } catch { return []; }
+}
+function isFavorito(id) {
+  return getFavoritos().includes(Number(id));
+}
+function toggleFavorito(id) {
+  id = Number(id);
+  let favs = getFavoritos();
+  const era = favs.includes(id);
+  favs = era ? favs.filter(f => f !== id) : [...favs, id];
+  try { localStorage.setItem(FAVORITOS_KEY, JSON.stringify(favs)); } catch {}
+  return !era; // retorna o novo estado (true = favoritado agora)
+}
+
 async function api(path, { method = 'GET', body, auth = false } = {}) {
   const headers = {};
   if (body) headers['Content-Type'] = 'application/json';
@@ -47,12 +66,34 @@ function thumbHTML(im) {
   return `<div style="width:100%;height:100%;display:flex;align-items:center;justify-content:center;color:var(--ink-faint);font-size:.8rem;">sem foto</div>`;
 }
 
+function favBtnHTML(id) {
+  const ativo = isFavorito(id);
+  return `<button type="button" class="fav-btn ${ativo ? 'active' : ''}" data-fav="${id}" aria-label="${ativo ? 'Remover dos favoritos' : 'Adicionar aos favoritos'}" title="${ativo ? 'Remover dos favoritos' : 'Adicionar aos favoritos'}">
+    <svg viewBox="0 0 24 24" width="18" height="18"><path d="M12 21s-7.2-4.6-10-9.1C.3 8.6 1.6 5 5.1 4.1c2-.5 4 .3 5.2 2 .3.4.8.4 1.1 0 1.2-1.7 3.2-2.5 5.2-2 3.5.9 4.8 4.5 3.1 7.8C19.2 16.4 12 21 12 21z"/></svg>
+  </button>`;
+}
+
+function ligarBotoesFavorito(root = document) {
+  root.querySelectorAll('[data-fav]').forEach(btn => {
+    btn.addEventListener('click', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      const novoEstado = toggleFavorito(btn.dataset.fav);
+      btn.classList.toggle('active', novoEstado);
+      btn.setAttribute('aria-label', novoEstado ? 'Remover dos favoritos' : 'Adicionar aos favoritos');
+      btn.setAttribute('title', novoEstado ? 'Remover dos favoritos' : 'Adicionar aos favoritos');
+      showToast(novoEstado ? 'Adicionado aos favoritos.' : 'Removido dos favoritos.');
+    });
+  });
+}
+
 function cardHTML(im) {
   const per = im.finalidade === 'aluguel' ? '<span class="per">/mês</span>' : '';
   return `<a class="card" href="imovel.html?id=${im.id}">
     <div class="thumb">
       ${thumbHTML(im)}
       <span class="badge ${im.finalidade}">${im.finalidade === 'venda' ? 'Venda' : 'Aluguel'}</span>
+      ${favBtnHTML(im.id)}
     </div>
     <div class="body">
       <div class="price">${fmtPreco(im.preco, im.finalidade)}${per}</div>
@@ -81,17 +122,18 @@ function showToast(msg) {
   el._t = setTimeout(() => el.classList.remove('show'), 2600);
 }
 
-function topbarHTML(active) {
-  const link = (href, label, key) => `<a href="${href}" class="btn btn-ghost" style="border:none;padding:.3rem 0;${active===key?'font-weight:700;border-bottom:2px solid var(--accent);border-radius:0;':''}">${label}</a>`;
+function topbarHTML(active, base = '') {
+  const link = (href, label, key) => `<a href="${base}${href}" class="btn btn-ghost" style="border:none;padding:.3rem 0;${active===key?'font-weight:700;border-bottom:2px solid var(--accent);border-radius:0;':''}">${label}</a>`;
   return `
   <header class="topbar">
     <div class="topbar-inner">
-      <a href="index.html" class="logo"><span class="mark">M</span> Malb Imóveis</a>
+      <a href="${base}index.html" class="logo"><span class="mark">M</span> Malb Imóveis</a>
       ${link('index.html', 'Início', 'home')}
       ${link('busca.html?finalidade=venda', 'Comprar', 'comprar')}
       ${link('busca.html?finalidade=aluguel', 'Alugar', 'alugar')}
+      ${link('favoritos.html', 'Favoritos', 'favoritos')}
       <div class="topbar-spacer"></div>
-      <a href="admin/index.html" class="btn btn-ghost">Painel do corretor</a>
+      <a href="${base}admin/index.html" class="btn btn-ghost">Painel do corretor</a>
     </div>
   </header>`;
 }

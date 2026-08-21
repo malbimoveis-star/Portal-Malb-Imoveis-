@@ -35,15 +35,18 @@ Filtros via query string (todos opcionais, combináveis):
 | `q` | `metrô` | Busca livre em título/bairro/cidade |
 | `quartosMin` | `2` | Quartos maior ou igual a |
 | `precoMax` | `800000` | Preço menor ou igual a |
+| `areaMin` | `80` | Área maior ou igual a (m²) |
+| `areaMax` | `300` | Área menor ou igual a (m²) |
+| `orderBy` | `preco_asc` | Ordenação: `recentes` (padrão), `preco_asc`, `preco_desc`, `area_desc` |
 | `status` | `all` | Autenticado: `all` mostra todos os status, ou passe um status específico |
 
-Resposta: `{ "data": [ {...imóvel} ], "total": N }`.
+Resposta: `{ "data": [ {...imóvel} ], "total": N }`. Cada imóvel inclui `lat`/`lng` (podem ser `null` quando a localização exata não foi cadastrada) — usados para o mapa na página de detalhe.
 
 ### `GET /api/imoveis/:id`
 Detalhe de um imóvel. `404` se não existir.
 
 ### `POST /api/imoveis` 🔒
-Cria um imóvel. Campos obrigatórios: `tipo`, `finalidade` (`venda`|`aluguel`), `preco`, `titulo`, `bairro`, `cidade`. Opcionais: `quartos`, `banheiros`, `vagas`, `area`, `descricao`, `amenities` (array de strings), `foto` (URL ou data URI), `status` (padrão `disponivel`).
+Cria um imóvel. Campos obrigatórios: `tipo`, `finalidade` (`venda`|`aluguel`), `preco`, `titulo`, `bairro`, `cidade`. Opcionais: `quartos`, `banheiros`, `vagas`, `area`, `descricao`, `amenities` (array de strings), `foto` (URL ou data URI), `lat`/`lng` (números, para exibir o mapa na página do imóvel), `status` (padrão `disponivel`).
 
 ### `PUT /api/imoveis/:id` 🔒
 Atualiza um imóvel (aceita atualização parcial — os campos não enviados mantêm o valor atual).
@@ -65,6 +68,10 @@ Atualiza o `status` de um lead (`novo` | `em_atendimento` | `convertido` | `perd
 ## Health check
 
 `GET /api/health` → `{ "status": "ok", "timestamp": "..." }` — sem autenticação, útil para monitoramento.
+
+## SEO
+
+`GET /sitemap.xml` — gerado dinamicamente a partir dos imóveis com `status=disponivel`, com a home, a busca, os favoritos e a URL de cada imóvel. `GET /robots.txt` — libera indexação do site público e bloqueia `/admin/`.
 
 ---
 

@@ -28,7 +28,7 @@ O cronograma abaixo é organizado por **fases com entregas verificáveis**, não
 | **Fase 0 — Descoberta** | Concluída | Este roadmap, estrutura inicial do repositório |
 | **Fase 1 — Fundação** | Concluída | Design system, protótipo navegável (home, busca, listagem, detalhe do imóvel) com dados de exemplo |
 | **Fase 2 — Backend core** | Concluída (MVP) | API REST de imóveis (CRUD), autenticação, banco de dados real, painel do corretor — ver ressalva abaixo sobre a stack |
-| **Fase 3 — Busca e experiência pública** | 2 semanas | Filtros avançados, mapa, favoritos, formulário de leads, SEO das páginas de imóvel |
+| **Fase 3 — Busca e experiência pública** | Concluída (MVP) | Filtros avançados, mapa, favoritos, formulário de leads, SEO das páginas de imóvel — ver ressalva abaixo sobre o mapa |
 | **Fase 4 — API de integração com CRMs** | 2 semanas | Import/export de imóveis (XML/JSON), webhooks, documentação da API (Swagger/OpenAPI), autenticação de parceiros |
 | **Fase 5 — CRM interno** | 2 semanas | Gestão de leads, funil de atendimento, atribuição a corretores |
 | **Fase 6 — Publicação** | 1–2 semanas | Testes, performance, domínio e deploy em produção |
@@ -54,6 +54,15 @@ O cronograma abaixo é organizado por **fases com entregas verificáveis**, não
 
 **Ressalva importante sobre a Fase 2:** o roadmap propõe NestJS + Prisma + PostgreSQL para produção. Esta implementação usa Node.js puro + SQLite porque o ambiente onde foi construída não tinha acesso ao registro do npm para instalar pacotes — então não foi possível instalar NestJS/Prisma nem testá-los rodando. O modelo de dados e os endpoints (`docs/API.md`) foram desenhados para que migrar para a stack de produção depois seja uma troca de camada, não uma reescrita. Isso deve ser feito assim que houver um ambiente de desenvolvimento com acesso normal ao npm (sua máquina, por exemplo, ou uma sessão futura com esse acesso).
 
+**Fase 3 — Busca e experiência pública:**
+- [x] Filtros avançados: bairro (lista dinâmica), área mínima, ordenação (mais recentes, menor/maior preço, maior área)
+- [x] Favoritos: salvos no navegador de quem visita (sem precisar de login), com página própria (`favoritos.html`)
+- [x] Mapa na página do imóvel (Leaflet + OpenStreetMap, sem precisar de chave de API paga) — ver ressalva abaixo
+- [x] Formulário de leads (já existia desde a Fase 2, mantido)
+- [x] SEO: título e meta description dinâmicos na página do imóvel, `sitemap.xml` gerado a partir dos imóveis ativos, `robots.txt`
+
+**Ressalva importante sobre a Fase 3:** o mapa usa a biblioteca Leaflet carregada de um CDN público (`unpkg.com`), então precisa de acesso normal à internet no navegador de quem visita o site — não precisa de chave de API nem custo, mas não funciona em redes totalmente bloqueadas. Testei o carregamento e o *fallback* (mensagem "mapa indisponível" quando o CDN não responde), mas não consegui testar o mapa renderizado de fato nesta sessão porque o ambiente onde construí o projeto não tem acesso geral à internet — vale conferir visualmente ao abrir o site na sua máquina. As coordenadas dos 12 imóveis de exemplo são aproximadas (uma por bairro), não o endereço exato.
+
 ## 5. Decisões pendentes (precisamos da sua confirmação)
 
 1. **Stack técnica** — confirmar NestJS + Prisma + PostgreSQL para produção (a Fase 2 atual roda em Node puro + SQLite por limitação do ambiente, ver seção 4).
@@ -65,10 +74,9 @@ O cronograma abaixo é organizado por **fases com entregas verificáveis**, não
 
 ## 6. Próximos passos sugeridos
 
-Com a Fase 2 pronta, a ordem natural é:
+Com as Fases 2 e 3 prontas, a ordem natural é:
 
-1. Você testar o painel do corretor e a busca no ambiente local (`node backend/src/server.js` → `http://localhost:3001`) e apontar o que precisa ajustar.
-2. Fase 3 — busca avançada (mapa, favoritos persistidos por usuário), SEO das páginas de imóvel.
-3. Fase 4 — API de integração com CRMs parceiros (import/export, webhooks, documentação Swagger/OpenAPI pública).
-4. Fase 5 — CRM interno mais completo (funil de atendimento, atribuição de leads a corretores).
-5. Fase 6 — migrar para a stack de produção (NestJS/Prisma/PostgreSQL/Next.js) e publicar de fato, o que depende das decisões 1, 2 e 6 acima.
+1. Você testar o site, a busca e o painel do corretor no ambiente local (`node backend/src/server.js` → `http://localhost:3001`), conferir se o mapa carrega normalmente na sua conexão, e apontar o que precisa ajustar.
+2. Fase 4 — API de integração com CRMs parceiros (import/export, webhooks, documentação Swagger/OpenAPI pública).
+3. Fase 5 — CRM interno mais completo (funil de atendimento, atribuição de leads a corretores).
+4. Fase 6 — migrar para a stack de produção (NestJS/Prisma/PostgreSQL/Next.js) e publicar de fato, o que depende das decisões 1, 2 e 6 acima.

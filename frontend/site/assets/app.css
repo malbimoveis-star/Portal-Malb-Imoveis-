@@ -22,17 +22,11 @@
   --danger: #C0392B;
   --ok: #2E9E4E;
 }
-@media (prefers-color-scheme: dark) {
-  :root:not([data-theme="light"]) {
-    --bg: #161B21; --surface: #1D242C; --surface-2: #242D36;
-    --ink: #EEF2F6; --ink-soft: #B8C3CD; --ink-faint: #7E8B97;
-    --accent: #6FA3E0; --accent-ink: #0C1D33; --accent-soft: #24374F;
-    --accent2: #6BCB8C; --accent2-soft: #203A29;
-    --border: #2B333C; --border-strong: #3A434D;
-    --shadow: 0 1px 2px rgba(0,0,0,.2), 0 8px 20px rgba(0,0,0,.25);
-    --danger: #E8917C; --ok: #6BCB8C;
-  }
-}
+/* A Malb pediu o site sempre no visual claro/de marca (fundo branco, azul e
+   verde da logo), sem alternar sozinho para escuro conforme o sistema do
+   visitante — por isso o tema escuro abaixo só é usado se algum dia formos
+   adicionar um botão de alternância manual (hoje não existe nenhum, então
+   ":root[data-theme=dark]" nunca é aplicado na prática). */
 :root[data-theme="dark"] {
   --bg: #161B21; --surface: #1D242C; --surface-2: #242D36;
   --ink: #EEF2F6; --ink-soft: #B8C3CD; --ink-faint: #7E8B97;

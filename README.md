@@ -6,7 +6,13 @@ Referência funcional e de estrutura: [vivareal.com.br](https://www.vivareal.com
 
 ## Status
 
-Fase 1 (Fundação) em andamento. Primeiro protótipo navegável disponível em [`frontend/prototipo.html`](frontend/prototipo.html) — home, busca com filtros e página de imóvel, com dados fictícios (ainda sem backend real). Veja o roadmap completo em [`docs/ROADMAP.md`](docs/ROADMAP.md).
+**Fase 2 (Backend core) implementada e testada.** A API real está no ar (`backend/`) com banco de dados, CRUD de imóveis, leads e autenticação — e o site público + painel do corretor (`frontend/site/`) já consomem essa API de verdade, não mais dados fictícios estáticos. Para rodar tudo localmente:
+
+```bash
+cd backend && node src/server.js
+```
+
+E acesse `http://localhost:3001`. Veja `backend/README.md` para detalhes e `docs/API.md` para a referência dos endpoints. O protótipo estático da Fase 1 continua em [`frontend/prototipo.html`](frontend/prototipo.html) como referência histórica. Roadmap completo e próximos passos em [`docs/ROADMAP.md`](docs/ROADMAP.md).
 
 ## Estrutura do repositório
 
@@ -24,8 +30,11 @@ Cada pasta tem seu próprio `README.md` explicando o que vai nela e o estado atu
 
 - [Roadmap e cronograma](docs/ROADMAP.md)
 - [Arquitetura técnica](docs/ARQUITETURA.md)
+- [Referência da API](docs/API.md)
 
-## Stack proposta (a confirmar com o time)
+## Stack proposta (produção) vs. implementação atual
+
+A stack de produção proposta continua a mesma (a confirmar com o time):
 
 - **Frontend:** Next.js (React) — SSR para SEO dos anúncios, painel administrativo
 - **Backend:** Node.js com NestJS — API REST, autenticação, integrações
@@ -33,3 +42,5 @@ Cada pasta tem seu próprio `README.md` explicando o que vai nela e o estado atu
 - **Busca/filtros:** Meilisearch ou Elasticsearch
 - **Armazenamento de imagens:** S3-compatível (ex: Cloudflare R2)
 - **Deploy:** a definir (Vercel/Railway/AWS) — ver seção de decisões pendentes no roadmap
+
+**Nota sobre a implementação atual da Fase 2:** o backend em `backend/` e o site em `frontend/site/` foram construídos com Node.js puro (sem NestJS) e SQLite (sem PostgreSQL), porque o ambiente onde foram escritos não tinha acesso ao registro do npm para instalar pacotes. O modelo de dados e os contratos de API já foram desenhados para a migração — ver `backend/README.md` para os detalhes dessa decisão.

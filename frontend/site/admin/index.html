@@ -1,0 +1,325 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Painel do corretor — Portal Malb Imóveis</title>
+<link rel="stylesheet" href="../assets/app.css">
+</head>
+<body>
+<div id="topbar"></div>
+
+<main>
+  <div class="admin-topbar" style="margin-top:1.6rem;">
+    <div>
+      <h1 style="font-size:1.5rem;">Painel do corretor</h1>
+      <p style="color:var(--ink-faint);font-size:.85rem;margin:.2rem 0 0;" id="user-info"></p>
+    </div>
+    <div style="display:flex;gap:.6rem;">
+      <button class="btn btn-ghost" id="btn-logout">Sair</button>
+    </div>
+  </div>
+
+  <div class="chip-row" style="margin-bottom:1.2rem;">
+    <button class="chip active" data-tab="imoveis">Imóveis</button>
+    <button class="chip" data-tab="leads">Leads</button>
+  </div>
+
+  <section id="tab-imoveis">
+    <div class="admin-topbar">
+      <span class="count" id="contagem-imoveis"></span>
+      <button class="btn btn-primary" id="btn-novo-imovel">+ Novo imóvel</button>
+    </div>
+    <div class="table-wrap">
+      <table>
+        <thead><tr>
+          <th>Foto</th><th>Título</th><th>Tipo</th><th>Finalidade</th><th>Preço</th><th>Status</th><th>Ações</th>
+        </tr></thead>
+        <tbody id="tbody-imoveis"><tr><td colspan="7">Carregando…</td></tr></tbody>
+      </table>
+    </div>
+  </section>
+
+  <section id="tab-leads" style="display:none;">
+    <div class="admin-topbar">
+      <span class="count" id="contagem-leads"></span>
+    </div>
+    <div class="table-wrap">
+      <table>
+        <thead><tr>
+          <th>Nome</th><th>Contato</th><th>Imóvel</th><th>Mensagem</th><th>Status</th><th>Recebido em</th>
+        </tr></thead>
+        <tbody id="tbody-leads"><tr><td colspan="6">Carregando…</td></tr></tbody>
+      </table>
+    </div>
+  </section>
+</main>
+
+<div class="modal-backdrop" id="modal-backdrop">
+  <div class="modal">
+    <h3 id="modal-titulo">Novo imóvel</h3>
+    <form class="form-stack" id="form-imovel">
+      <input type="hidden" id="f-id">
+      <div class="field-grid">
+        <div class="field span2">
+          <label>Título</label>
+          <input type="text" id="f-titulo" required>
+        </div>
+        <div class="field">
+          <label>Tipo</label>
+          <select id="f-tipo" required>
+            <option>Apartamento</option><option>Casa</option><option>Studio</option>
+            <option>Cobertura</option><option>Sala Comercial</option><option>Terreno</option><option>Kitnet</option>
+          </select>
+        </div>
+        <div class="field">
+          <label>Finalidade</label>
+          <select id="f-finalidade" required>
+            <option value="venda">Venda</option>
+            <option value="aluguel">Aluguel</option>
+          </select>
+        </div>
+        <div class="field">
+          <label>Preço (R$)</label>
+          <input type="number" id="f-preco" min="0" step="1" required>
+        </div>
+        <div class="field">
+          <label>Status</label>
+          <select id="f-status">
+            <option value="disponivel">Disponível</option>
+            <option value="reservado">Reservado</option>
+            <option value="vendido">Vendido</option>
+            <option value="alugado">Alugado</option>
+          </select>
+        </div>
+        <div class="field">
+          <label>Bairro</label>
+          <input type="text" id="f-bairro" required>
+        </div>
+        <div class="field">
+          <label>Cidade</label>
+          <input type="text" id="f-cidade" required>
+        </div>
+        <div class="field">
+          <label>Quartos</label>
+          <input type="number" id="f-quartos" min="0" value="0">
+        </div>
+        <div class="field">
+          <label>Banheiros</label>
+          <input type="number" id="f-banheiros" min="0" value="0">
+        </div>
+        <div class="field">
+          <label>Vagas</label>
+          <input type="number" id="f-vagas" min="0" value="0">
+        </div>
+        <div class="field">
+          <label>Área (m²)</label>
+          <input type="number" id="f-area" min="0" value="0">
+        </div>
+        <div class="field span2">
+          <label>Descrição</label>
+          <textarea id="f-descricao" rows="3"></textarea>
+        </div>
+        <div class="field span2">
+          <label>Comodidades (separadas por vírgula)</label>
+          <input type="text" id="f-amenities" placeholder="Portaria 24h, Academia, Varanda">
+        </div>
+        <div class="field span2">
+          <label>URL da foto (opcional — deixe em branco para manter a atual)</label>
+          <input type="text" id="f-foto" placeholder="https://... ou data:image/...">
+        </div>
+      </div>
+      <div style="display:flex;gap:.6rem;justify-content:flex-end;margin-top:.6rem;">
+        <button type="button" class="btn btn-ghost" id="btn-cancelar">Cancelar</button>
+        <button type="submit" class="btn btn-primary" id="btn-salvar">Salvar</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<script src="../assets/app.js"></script>
+<script>
+document.getElementById('topbar').innerHTML = topbarHTML('');
+
+if (!getToken()) window.location.href = 'login.html';
+
+let imoveisCache = [];
+
+async function init() {
+  try {
+    const me = await api('/auth/me', { auth: true });
+    document.getElementById('user-info').textContent = `${me.data.nome} · ${me.data.email}`;
+  } catch (err) {
+    clearToken();
+    window.location.href = 'login.html';
+    return;
+  }
+  carregarImoveis();
+  carregarLeads();
+}
+
+document.getElementById('btn-logout').addEventListener('click', async () => {
+  try { await api('/auth/logout', { method: 'POST', auth: true }); } catch {}
+  clearToken();
+  window.location.href = 'login.html';
+});
+
+document.querySelectorAll('[data-tab]').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('[data-tab]').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    const tab = btn.dataset.tab;
+    document.getElementById('tab-imoveis').style.display = tab === 'imoveis' ? '' : 'none';
+    document.getElementById('tab-leads').style.display = tab === 'leads' ? '' : 'none';
+  });
+});
+
+async function carregarImoveis() {
+  try {
+    const resp = await api('/imoveis?status=all', { auth: true });
+    imoveisCache = resp.data;
+    document.getElementById('contagem-imoveis').textContent = `${resp.total} imóve${resp.total === 1 ? 'l' : 'is'}`;
+    document.getElementById('tbody-imoveis').innerHTML = resp.data.map(im => `
+      <tr>
+        <td><div style="width:52px;height:38px;border-radius:6px;overflow:hidden;background:var(--surface-2);">${im.foto ? `<img src="${im.foto}" style="width:100%;height:100%;object-fit:cover;">` : ''}</div></td>
+        <td>${im.titulo}</td>
+        <td>${im.tipo}</td>
+        <td>${im.finalidade === 'venda' ? 'Venda' : 'Aluguel'}</td>
+        <td class="price">${fmtPreco(im.preco, im.finalidade)}</td>
+        <td><span class="status-pill ${im.status}">${im.status}</span></td>
+        <td style="display:flex;gap:.4rem;">
+          <button class="btn btn-ghost" data-editar="${im.id}">Editar</button>
+          <button class="btn btn-danger" data-excluir="${im.id}">Excluir</button>
+        </td>
+      </tr>
+    `).join('');
+    document.querySelectorAll('[data-editar]').forEach(b => b.addEventListener('click', () => abrirModal(Number(b.dataset.editar))));
+    document.querySelectorAll('[data-excluir]').forEach(b => b.addEventListener('click', () => excluirImovel(Number(b.dataset.excluir))));
+  } catch (err) {
+    document.getElementById('tbody-imoveis').innerHTML = `<tr><td colspan="7" style="color:var(--danger);">Erro ao carregar: ${err.message}</td></tr>`;
+  }
+}
+
+async function carregarLeads() {
+  try {
+    const resp = await api('/leads', { auth: true });
+    document.getElementById('contagem-leads').textContent = `${resp.total} lead${resp.total === 1 ? '' : 's'}`;
+    document.getElementById('tbody-leads').innerHTML = resp.data.length ? resp.data.map(lead => {
+      const im = imoveisCache.find(i => i.id === lead.imovelId);
+      return `
+      <tr>
+        <td>${lead.nome}</td>
+        <td>${lead.contato}</td>
+        <td>${im ? im.titulo : (lead.imovelId ? '#' + lead.imovelId : '—')}</td>
+        <td style="white-space:normal;max-width:260px;">${lead.mensagem || ''}</td>
+        <td>
+          <select data-status-lead="${lead.id}" style="border:1px solid var(--border-strong);border-radius:6px;padding:.2rem .4rem;background:var(--surface);color:var(--ink);">
+            ${['novo','em_atendimento','convertido','perdido'].map(s => `<option value="${s}" ${s===lead.status?'selected':''}>${s}</option>`).join('')}
+          </select>
+        </td>
+        <td>${new Date(lead.createdAt.replace(' ', 'T') + 'Z').toLocaleString('pt-BR')}</td>
+      </tr>`;
+    }).join('') : '<tr><td colspan="6" style="color:var(--ink-faint);">Nenhum lead recebido ainda.</td></tr>';
+
+    document.querySelectorAll('[data-status-lead]').forEach(sel => {
+      sel.addEventListener('change', async () => {
+        try {
+          await api('/leads/' + sel.dataset.statusLead, { method: 'PUT', auth: true, body: { status: sel.value } });
+          showToast('Status do lead atualizado.');
+        } catch (err) {
+          showToast('Erro ao atualizar: ' + err.message);
+        }
+      });
+    });
+  } catch (err) {
+    document.getElementById('tbody-leads').innerHTML = `<tr><td colspan="6" style="color:var(--danger);">Erro ao carregar: ${err.message}</td></tr>`;
+  }
+}
+
+function abrirModal(id) {
+  const form = document.getElementById('form-imovel');
+  form.reset();
+  document.getElementById('f-id').value = '';
+  document.getElementById('modal-titulo').textContent = id ? 'Editar imóvel' : 'Novo imóvel';
+  if (id) {
+    const im = imoveisCache.find(i => i.id === id);
+    if (im) {
+      document.getElementById('f-id').value = im.id;
+      document.getElementById('f-titulo').value = im.titulo;
+      document.getElementById('f-tipo').value = im.tipo;
+      document.getElementById('f-finalidade').value = im.finalidade;
+      document.getElementById('f-preco').value = im.preco;
+      document.getElementById('f-status').value = im.status;
+      document.getElementById('f-bairro').value = im.bairro;
+      document.getElementById('f-cidade').value = im.cidade;
+      document.getElementById('f-quartos').value = im.quartos;
+      document.getElementById('f-banheiros').value = im.banheiros;
+      document.getElementById('f-vagas').value = im.vagas;
+      document.getElementById('f-area').value = im.area;
+      document.getElementById('f-descricao').value = im.descricao || '';
+      document.getElementById('f-amenities').value = (im.amenities || []).join(', ');
+    }
+  }
+  document.getElementById('modal-backdrop').classList.add('show');
+}
+function fecharModal() { document.getElementById('modal-backdrop').classList.remove('show'); }
+
+document.getElementById('btn-novo-imovel').addEventListener('click', () => abrirModal(null));
+document.getElementById('btn-cancelar').addEventListener('click', fecharModal);
+document.getElementById('modal-backdrop').addEventListener('click', (e) => { if (e.target.id === 'modal-backdrop') fecharModal(); });
+
+document.getElementById('form-imovel').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const id = document.getElementById('f-id').value;
+  const payload = {
+    titulo: document.getElementById('f-titulo').value,
+    tipo: document.getElementById('f-tipo').value,
+    finalidade: document.getElementById('f-finalidade').value,
+    preco: Number(document.getElementById('f-preco').value),
+    status: document.getElementById('f-status').value,
+    bairro: document.getElementById('f-bairro').value,
+    cidade: document.getElementById('f-cidade').value,
+    quartos: Number(document.getElementById('f-quartos').value),
+    banheiros: Number(document.getElementById('f-banheiros').value),
+    vagas: Number(document.getElementById('f-vagas').value),
+    area: Number(document.getElementById('f-area').value),
+    descricao: document.getElementById('f-descricao').value,
+    amenities: document.getElementById('f-amenities').value.split(',').map(s => s.trim()).filter(Boolean),
+  };
+  const fotoVal = document.getElementById('f-foto').value.trim();
+  if (fotoVal) payload.foto = fotoVal;
+
+  const btn = document.getElementById('btn-salvar');
+  btn.disabled = true; btn.textContent = 'Salvando…';
+  try {
+    if (id) {
+      await api('/imoveis/' + id, { method: 'PUT', auth: true, body: payload });
+      showToast('Imóvel atualizado.');
+    } else {
+      await api('/imoveis', { method: 'POST', auth: true, body: payload });
+      showToast('Imóvel criado.');
+    }
+    fecharModal();
+    carregarImoveis();
+  } catch (err) {
+    showToast('Erro ao salvar: ' + err.message);
+  } finally {
+    btn.disabled = false; btn.textContent = 'Salvar';
+  }
+});
+
+async function excluirImovel(id) {
+  if (!confirm('Excluir este imóvel? Essa ação não pode ser desfeita.')) return;
+  try {
+    await api('/imoveis/' + id, { method: 'DELETE', auth: true });
+    showToast('Imóvel excluído.');
+    carregarImoveis();
+  } catch (err) {
+    showToast('Erro ao excluir: ' + err.message);
+  }
+}
+
+init();
+</script>
+</body>
+</html>

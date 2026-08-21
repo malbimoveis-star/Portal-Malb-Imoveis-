@@ -4,6 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Buscar imóveis — Portal Malb Imóveis</title>
+<meta name="description" content="Filtre imóveis para comprar ou alugar por bairro, tipo, preço, quartos e área na Malb Imóveis.">
 <link rel="stylesheet" href="assets/app.css">
 </head>
 <body>
@@ -54,16 +55,40 @@
       </div>
 
       <div class="filtro-grupo">
+        <label class="titulo-grupo">Bairro</label>
+        <select id="sel-bairro" style="width:100%;border:1px solid var(--border-strong);border-radius:8px;padding:.5rem .6rem;background:var(--surface);color:var(--ink);">
+          <option value="">Todos os bairros</option>
+        </select>
+      </div>
+
+      <div class="filtro-grupo">
         <label class="titulo-grupo">Preço máximo</label>
         <input type="range" id="preco" min="1800" max="3400000" step="1000" style="width:100%;">
         <div id="preco-val" style="font-size:.85rem;color:var(--ink-faint);"></div>
       </div>
 
+      <div class="filtro-grupo">
+        <label class="titulo-grupo">Área mínima (m²)</label>
+        <input type="range" id="area" min="0" max="500" step="5" style="width:100%;">
+        <div id="area-val" style="font-size:.85rem;color:var(--ink-faint);"></div>
+      </div>
+
       <button class="btn btn-ghost" id="btn-limpar">Limpar filtros</button>
     </aside>
 
-    <div id="resultados" class="grid">
-      <p style="color:var(--ink-faint)">Carregando…</p>
+    <div>
+      <div class="resultados-topo">
+        <label for="sel-ordem">Ordenar por</label>
+        <select id="sel-ordem">
+          <option value="recentes">Mais recentes</option>
+          <option value="preco_asc">Menor preço</option>
+          <option value="preco_desc">Maior preço</option>
+          <option value="area_desc">Maior área</option>
+        </select>
+      </div>
+      <div id="resultados" class="grid">
+        <p style="color:var(--ink-faint)">Carregando…</p>
+      </div>
     </div>
   </div>
 </main>
@@ -80,8 +105,11 @@ const estado = {
   finalidade: params.get('finalidade') || '',
   tipo: params.get('tipo') || '',
   q: params.get('q') || '',
+  bairro: params.get('bairro') || '',
   quartosMin: Number(params.get('quartosMin') || 0),
   precoMax: params.get('precoMax') ? Number(params.get('precoMax')) : null,
+  areaMin: params.get('areaMin') ? Number(params.get('areaMin')) : null,
+  orderBy: params.get('orderBy') || 'recentes',
 };
 
 function syncUI() {
@@ -96,6 +124,30 @@ function syncUI() {
     precoInput.value = precoInput.max;
     document.getElementById('preco-val').textContent = 'sem limite';
   }
+  const areaInput = document.getElementById('area');
+  if (estado.areaMin != null) {
+    areaInput.value = estado.areaMin;
+    document.getElementById('area-val').textContent = 'a partir de ' + estado.areaMin + 'm²';
+  } else {
+    areaInput.value = 0;
+    document.getElementById('area-val').textContent = 'sem mínimo';
+  }
+  document.getElementById('sel-bairro').value = estado.bairro;
+  document.getElementById('sel-ordem').value = estado.orderBy;
+}
+
+async function popularBairros() {
+  try {
+    const resp = await api('/imoveis');
+    const bairros = [...new Set(resp.data.map(i => i.bairro))].sort((a, b) => a.localeCompare(b, 'pt-BR'));
+    const sel = document.getElementById('sel-bairro');
+    for (const b of bairros) {
+      const opt = document.createElement('option');
+      opt.value = b; opt.textContent = b;
+      sel.appendChild(opt);
+    }
+    sel.value = estado.bairro;
+  } catch {}
 }
 
 async function buscar() {
@@ -103,8 +155,11 @@ async function buscar() {
   if (estado.finalidade) qs.set('finalidade', estado.finalidade);
   if (estado.tipo) qs.set('tipo', estado.tipo);
   if (estado.q) qs.set('q', estado.q);
+  if (estado.bairro) qs.set('bairro', estado.bairro);
   if (estado.quartosMin) qs.set('quartosMin', estado.quartosMin);
   if (estado.precoMax != null) qs.set('precoMax', estado.precoMax);
+  if (estado.areaMin != null) qs.set('areaMin', estado.areaMin);
+  if (estado.orderBy) qs.set('orderBy', estado.orderBy);
 
   try {
     const resp = await api('/imoveis?' + qs.toString());
@@ -114,6 +169,7 @@ async function buscar() {
       : '<div class="empty-state" style="grid-column:1/-1;">Nenhum imóvel encontrado com esses filtros.<br><button class="btn btn-ghost" id="btn-limpar-2" style="margin-top:1rem;">Limpar filtros</button></div>';
     const btn2 = document.getElementById('btn-limpar-2');
     if (btn2) btn2.addEventListener('click', limpar);
+    ligarBotoesFavorito(document.getElementById('resultados'));
   } catch (err) {
     document.getElementById('resultados').innerHTML = `<p style="color:var(--danger)">Não foi possível buscar os imóveis: ${err.message}.</p>`;
   }
@@ -127,9 +183,13 @@ document.querySelectorAll('#chips-finalidade .chip').forEach(b => b.addEventList
 document.querySelectorAll('#chips-tipo .chip').forEach(b => b.addEventListener('click', () => { estado.tipo = b.dataset.tipo; syncUI(); buscar(); }));
 document.querySelectorAll('#chips-quartos .chip').forEach(b => b.addEventListener('click', () => { estado.quartosMin = Number(b.dataset.quartos); syncUI(); buscar(); }));
 document.getElementById('preco').addEventListener('change', (e) => { estado.precoMax = Number(e.target.value); syncUI(); buscar(); });
+document.getElementById('area').addEventListener('change', (e) => { estado.areaMin = Number(e.target.value) || null; syncUI(); buscar(); });
+document.getElementById('sel-bairro').addEventListener('change', (e) => { estado.bairro = e.target.value; syncUI(); buscar(); });
+document.getElementById('sel-ordem').addEventListener('change', (e) => { estado.orderBy = e.target.value; syncUI(); buscar(); });
 document.getElementById('btn-limpar').addEventListener('click', limpar);
 
 syncUI();
+popularBairros();
 buscar();
 </script>
 </body>

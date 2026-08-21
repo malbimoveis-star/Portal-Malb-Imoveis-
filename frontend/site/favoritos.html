@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Meus favoritos — Portal Malb Imóveis</title>
+<meta name="description" content="Imóveis que você favoritou no Portal Malb Imóveis.">
+<link rel="stylesheet" href="assets/app.css">
+</head>
+<body>
+<div id="topbar"></div>
+
+<main>
+  <div class="section-head" style="margin-top:2rem;">
+    <h1 style="font-size:1.6rem;">Meus favoritos</h1>
+    <span class="count" id="contagem"></span>
+  </div>
+  <p style="color:var(--ink-faint);margin-top:-.6rem;margin-bottom:1.4rem;font-size:.85rem;">Os favoritos ficam salvos só neste navegador, sem precisar de login.</p>
+
+  <div id="resultados" class="grid">
+    <p style="color:var(--ink-faint)">Carregando…</p>
+  </div>
+</main>
+
+<div id="footer"></div>
+
+<script src="assets/app.js"></script>
+<script>
+document.getElementById('topbar').innerHTML = topbarHTML('favoritos');
+document.getElementById('footer').innerHTML = footerHTML();
+
+async function carregar() {
+  const favs = getFavoritos();
+  if (!favs.length) {
+    document.getElementById('contagem').textContent = '0 imóveis';
+    document.getElementById('resultados').innerHTML = `
+      <div class="empty-state" style="grid-column:1/-1;">
+        Você ainda não favoritou nenhum imóvel.<br>
+        <a href="busca.html" class="btn btn-primary" style="margin-top:1rem;display:inline-block;">Buscar imóveis</a>
+      </div>`;
+    return;
+  }
+  try {
+    const resp = await api('/imoveis');
+    const favoritados = resp.data.filter(im => favs.includes(im.id));
+    document.getElementById('contagem').textContent = `${favoritados.length} imóve${favoritados.length === 1 ? 'l' : 'is'}`;
+    document.getElementById('resultados').innerHTML = favoritados.length
+      ? favoritados.map(cardHTML).join('')
+      : '<div class="empty-state" style="grid-column:1/-1;">Os imóveis que você favoritou não estão mais disponíveis.</div>';
+    ligarBotoesFavorito(document.getElementById('resultados'));
+    document.querySelectorAll('#resultados [data-fav]').forEach(btn => {
+      btn.addEventListener('click', () => setTimeout(carregar, 300));
+    });
+  } catch (err) {
+    document.getElementById('resultados').innerHTML = `<p style="color:var(--danger)">Não foi possível carregar seus favoritos: ${err.message}.</p>`;
+  }
+}
+carregar();
+</script>
+</body>
+</html>

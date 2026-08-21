@@ -4,6 +4,11 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Imóvel — Portal Malb Imóveis</title>
+<meta name="description" id="meta-desc" content="Detalhes do imóvel — Portal Malb Imóveis.">
+<meta property="og:type" content="product">
+<meta property="og:title" id="og-title" content="Portal Malb Imóveis">
+<meta property="og:description" id="og-desc" content="">
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
 <link rel="stylesheet" href="assets/app.css">
 </head>
 <body>
@@ -15,6 +20,7 @@
 
 <div id="footer"></div>
 
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script src="assets/app.js"></script>
 <script>
 document.getElementById('topbar').innerHTML = topbarHTML('');
@@ -30,12 +36,19 @@ async function carregar() {
   try {
     const { data: im } = await api('/imoveis/' + id);
     document.title = im.titulo + ' — Portal Malb Imóveis';
+    const resumo = `${im.tipo} com ${im.quartos} quarto${im.quartos === 1 ? '' : 's'} em ${im.bairro}, ${im.cidade} — ${fmtPreco(im.preco, im.finalidade)}${im.finalidade === 'aluguel' ? '/mês' : ''}.`;
+    document.getElementById('meta-desc').setAttribute('content', resumo);
+    document.getElementById('og-title').setAttribute('content', im.titulo + ' — Portal Malb Imóveis');
+    document.getElementById('og-desc').setAttribute('content', resumo);
     const per = im.finalidade === 'aluguel' ? '<span style="font-size:.8rem;font-weight:500;color:var(--ink-faint);">/mês</span>' : '';
     const iniciais = (im.bairro || '?').slice(0, 2).toUpperCase();
 
     document.getElementById('conteudo').innerHTML = `
       <a href="busca.html" class="btn btn-ghost" style="margin:1.4rem 0;">&larr; Voltar</a>
-      <div class="detail-hero">${im.foto ? `<img src="${im.foto}" alt="Foto ilustrativa do imóvel">` : ''}</div>
+      <div class="detail-hero">
+        ${im.foto ? `<img src="${im.foto}" alt="Foto ilustrativa do imóvel">` : ''}
+        <button type="button" class="fav-btn large" id="fav-detalhe" style="position:absolute;margin:.7rem;" aria-label="Favoritar"></button>
+      </div>
 
       <div class="detail-layout">
         <div>
@@ -59,6 +72,11 @@ async function carregar() {
             <h3 style="font-size:1.1rem;margin-top:1.6rem;">Comodidades</h3>
             <div class="amenity-list">${im.amenities.map(a => `<span class="amenity">${a}</span>`).join('')}</div>
           ` : ''}
+
+          <h3 style="font-size:1.1rem;margin-top:1.6rem;">Localização</h3>
+          <div class="detail-map" id="mapa">
+            ${im.lat != null && im.lng != null ? '' : '<div class="sem-mapa">Localização exata não cadastrada para este imóvel.</div>'}
+          </div>
         </div>
 
         <div class="contact-card">
@@ -78,6 +96,34 @@ async function carregar() {
         </div>
       </div>
     `;
+
+    const favBtn = document.getElementById('fav-detalhe');
+    const atualizarFav = () => {
+      const ativo = isFavorito(im.id);
+      favBtn.classList.toggle('active', ativo);
+      favBtn.innerHTML = `<svg viewBox="0 0 24 24" width="22" height="22"><path d="M12 21s-7.2-4.6-10-9.1C.3 8.6 1.6 5 5.1 4.1c2-.5 4 .3 5.2 2 .3.4.8.4 1.1 0 1.2-1.7 3.2-2.5 5.2-2 3.5.9 4.8 4.5 3.1 7.8C19.2 16.4 12 21 12 21z"/></svg>`;
+      favBtn.setAttribute('aria-label', ativo ? 'Remover dos favoritos' : 'Adicionar aos favoritos');
+    };
+    atualizarFav();
+    favBtn.addEventListener('click', () => { toggleFavorito(im.id); atualizarFav(); });
+
+    if (im.lat != null && im.lng != null) {
+      if (window.L) {
+        try {
+          const mapa = L.map('mapa', { scrollWheelZoom: false }).setView([im.lat, im.lng], 15);
+          L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
+            maxZoom: 19,
+          }).addTo(mapa);
+          L.marker([im.lat, im.lng]).addTo(mapa).bindPopup(im.titulo);
+        } catch (e) {
+          document.getElementById('mapa').innerHTML = '<div class="sem-mapa">Não foi possível carregar o mapa.</div>';
+        }
+      } else {
+        // biblioteca do mapa (carregada de um CDN) não chegou a tempo ou a conexão bloqueou o CDN
+        document.getElementById('mapa').innerHTML = '<div class="sem-mapa">Mapa indisponível no momento (verifique sua conexão).</div>';
+      }
+    }
 
     document.getElementById('form-lead').addEventListener('submit', async (e) => {
       e.preventDefault();

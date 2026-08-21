@@ -3,7 +3,11 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Portal Malb Imóveis</title>
+<title>Portal Malb Imóveis — Compre e alugue imóveis</title>
+<meta name="description" content="Encontre apartamentos, casas e imóveis comerciais para comprar ou alugar com a Malb Imóveis. Busque por bairro, preço e características e fale direto com o corretor.">
+<meta property="og:type" content="website">
+<meta property="og:title" content="Portal Malb Imóveis">
+<meta property="og:description" content="Busque, compare e fale direto com o corretor — imóveis para comprar ou alugar.">
 <link rel="stylesheet" href="assets/app.css">
 </head>
 <body>
@@ -91,6 +95,7 @@ async function carregar() {
     document.getElementById('destaques').innerHTML = destaques.length
       ? destaques.map(cardHTML).join('')
       : '<p style="color:var(--ink-faint)">Nenhum imóvel disponível no momento.</p>';
+    ligarBotoesFavorito(document.getElementById('destaques'));
   } catch (err) {
     document.getElementById('destaques').innerHTML = `<p style="color:var(--danger)">Não foi possível carregar os imóveis: ${err.message}. Verifique se o servidor (\`node backend/src/server.js\`) está rodando.</p>`;
   }

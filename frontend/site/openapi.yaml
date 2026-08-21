@@ -1,0 +1,683 @@
+openapi: 3.0.3
+info:
+  title: Portal Malb Imóveis — API
+  version: "1.0.0"
+  description: |
+    API do Portal Malb Imóveis: cadastro e busca de imóveis, leads, painel
+    interno (CRM) e a API de integração com CRMs parceiros (Fase 4).
+
+    Há dois grupos de rotas com contratos diferentes:
+
+    - **Rotas internas** (`/api/imoveis`, `/api/leads`, `/api/auth`, `/api/parceiros`) —
+      usadas pelo site público e pelo painel do corretor. As de escrita exigem
+      sessão autenticada (`Authorization: Bearer <token>` obtido em
+      `POST /api/auth/login`). Podem mudar sem aviso prévio — não são
+      destinadas a integração por terceiros.
+    - **API de parceiros** (`/api/v1/parceiros/*`) — a superfície pública para
+      CRMs parceiros importarem/exportarem imóveis e receberem webhooks. Tem
+      versionamento (`v1`) porque é um contrato externo: mudanças que quebram
+      compatibilidade virão em `v2`, mantendo `v1` funcionando. Autenticada
+      por chave de API (header `X-Api-Key`), gerada pelo corretor no painel
+      em Parceiros (CRMs) → Novo parceiro.
+
+    **Limitações conhecidas (honestas, não escondidas):** a entrega de
+    webhooks é *best-effort* — uma única tentativa, sem fila de retry; se o
+    endpoint do parceiro estiver fora do ar no momento do disparo, a entrega
+    é perdida (fica registrada como falha no log de entregas, mas não é
+    reenviada automaticamente). O formato XML do feed de imóveis
+    (`/api/v1/parceiros/imoveis.xml`) é um formato próprio do Portal Malb,
+    inspirado em convenções comuns de feeds imobiliários — não é uma cópia do
+    schema proprietário de nenhum portal real.
+  contact:
+    name: Malb Imóveis
+    email: malbimoveis@gmail.com
+
+servers:
+  - url: /api
+    description: Servidor atual (caminho relativo à origem onde o site está hospedado)
+
+tags:
+  - name: Imóveis
+    description: Busca e cadastro de imóveis (site público + painel)
+  - name: Leads
+    description: Contatos de interesse enviados pelo site público
+  - name: Autenticação
+    description: Login do painel do corretor (sessão)
+  - name: Parceiros (painel)
+    description: Gestão de parceiros CRM pelo corretor, no painel interno
+  - name: Parceiros (API v1)
+    description: API pública consumida pelo CRM do parceiro, autenticada por chave de API
+
+components:
+  securitySchemes:
+    sessionAuth:
+      type: http
+      scheme: bearer
+      description: Token de sessão obtido em `POST /api/auth/login`, usado pelo painel do corretor.
+    apiKeyAuth:
+      type: apiKey
+      in: header
+      name: X-Api-Key
+      description: Chave de API do parceiro (formato `malb_...`), gerada no painel em Parceiros (CRMs).
+
+  schemas:
+    Imovel:
+      type: object
+      properties:
+        id: { type: integer, example: 12 }
+        tipo: { type: string, example: apartamento }
+        finalidade: { type: string, enum: [venda, aluguel] }
+        preco: { type: number, example: 450000 }
+        titulo: { type: string, example: "Apartamento 2 quartos no Centro" }
+        bairro: { type: string, example: Centro }
+        cidade: { type: string, example: "Porto Alegre" }
+        quartos: { type: integer, example: 2 }
+        banheiros: { type: integer, example: 1 }
+        vagas: { type: integer, example: 1 }
+        area: { type: number, example: 65 }
+        descricao: { type: string }
+        amenities: { type: array, items: { type: string }, example: ["piscina", "academia"] }
+        foto: { type: string, format: uri }
+        lat: { type: number, nullable: true, example: -30.0346 }
+        lng: { type: number, nullable: true, example: -51.2177 }
+        status: { type: string, enum: [disponivel, reservado, vendido, alugado] }
+        origem: { type: string, enum: [proprio, parceiro], description: "Se o imóvel foi cadastrado pela Malb ou importado de um parceiro" }
+        parceiroId: { type: integer, nullable: true }
+        referenciaExterna: { type: string, nullable: true, description: "ID do imóvel no sistema do parceiro (só quando origem = parceiro)" }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+
+    ImovelEntrada:
+      type: object
+      required: [tipo, finalidade, preco, titulo, bairro, cidade]
+      properties:
+        tipo: { type: string, example: apartamento }
+        finalidade: { type: string, enum: [venda, aluguel] }
+        preco: { type: number }
+        titulo: { type: string }
+        bairro: { type: string }
+        cidade: { type: string }
+        quartos: { type: integer }
+        banheiros: { type: integer }
+        vagas: { type: integer }
+        area: { type: number }
+        descricao: { type: string }
+        amenities: { type: array, items: { type: string } }
+        foto: { type: string, format: uri }
+        lat: { type: number, nullable: true }
+        lng: { type: number, nullable: true }
+        status: { type: string, enum: [disponivel, reservado, vendido, alugado], default: disponivel }
+
+    ImovelParceiroEntrada:
+      allOf:
+        - $ref: '#/components/schemas/ImovelEntrada'
+        - type: object
+          required: [referenciaExterna]
+          properties:
+            referenciaExterna:
+              type: string
+              description: ID do imóvel no sistema do parceiro. Usado como chave de upsert — reenviar com a mesma referência atualiza o imóvel em vez de duplicar.
+              example: "CRM-4471"
+
+    Lead:
+      type: object
+      properties:
+        id: { type: integer }
+        imovelId: { type: integer, nullable: true }
+        nome: { type: string }
+        contato: { type: string, description: "Telefone ou e-mail informado pelo interessado" }
+        mensagem: { type: string }
+        status: { type: string, enum: [novo, em_atendimento, convertido, perdido] }
+        createdAt: { type: string, format: date-time }
+
+    Parceiro:
+      type: object
+      properties:
+        id: { type: integer }
+        nome: { type: string }
+        chavePrefixo: { type: string, description: "Primeiros caracteres da chave de API, para identificação — a chave completa nunca é reexibida", example: "malb_d1805e9e" }
+        webhookUrl: { type: string, format: uri, nullable: true }
+        ativo: { type: boolean }
+        imoveisImportados: { type: integer, description: "Presente apenas na listagem" }
+        createdAt: { type: string, format: date-time }
+
+    ParceiroComChave:
+      allOf:
+        - $ref: '#/components/schemas/Parceiro'
+        - type: object
+          properties:
+            chaveApi:
+              type: string
+              description: "Chave de API em texto puro — só é retornada nesta resposta (criação ou regeneração). Não é recuperável depois."
+              example: "malb_d1805e9e5ced40148720f545db66f154f5608777b6aa2a7ae4d8752e50f42ca5"
+
+    WebhookEntrega:
+      type: object
+      properties:
+        id: { type: integer }
+        evento: { type: string, enum: [lead.criado, imovel.atualizado, teste] }
+        sucesso: { type: boolean }
+        statusHttp: { type: integer, nullable: true }
+        erro: { type: string, nullable: true }
+        createdAt: { type: string, format: date-time }
+
+    WebhookPayload:
+      type: object
+      description: |
+        Corpo enviado por POST à `webhookUrl` cadastrada do parceiro, assinado
+        via header `X-Malb-Signature: sha256=<hmac hex>` (HMAC-SHA256 sobre o
+        corpo JSON bruto, usando o `webhookSecret` do parceiro).
+      properties:
+        evento: { type: string, enum: [lead.criado, imovel.atualizado, teste] }
+        dados: { type: object, description: "Payload específico do evento (um Lead para lead.criado, um Imovel para imovel.atualizado)" }
+
+    Erro:
+      type: object
+      properties:
+        error: { type: string }
+        detalhes: { type: array, items: { type: string } }
+
+  parameters:
+    ApiKeyRequired:
+      name: X-Api-Key
+      in: header
+      required: true
+      schema: { type: string }
+      description: Chave de API do parceiro
+
+paths:
+  /imoveis:
+    get:
+      tags: [Imóveis]
+      summary: Buscar imóveis (site público)
+      description: Endpoint público, sem autenticação. Usado pela busca do site.
+      parameters:
+        - name: finalidade
+          in: query
+          schema: { type: string, enum: [venda, aluguel] }
+        - name: tipo
+          in: query
+          schema: { type: string }
+        - name: quartosMin
+          in: query
+          schema: { type: integer }
+        - name: precoMax
+          in: query
+          schema: { type: number }
+        - name: cidade
+          in: query
+          schema: { type: string }
+        - name: bairro
+          in: query
+          schema: { type: string }
+        - name: q
+          in: query
+          schema: { type: string }
+          description: Busca textual livre (título/descrição)
+        - name: status
+          in: query
+          schema: { type: string }
+          description: "'all' retorna todos os status (uso do painel); por padrão só 'disponivel' aparece na busca pública"
+      responses:
+        '200':
+          description: Lista de imóveis
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: { type: array, items: { $ref: '#/components/schemas/Imovel' } }
+                  total: { type: integer }
+    post:
+      tags: [Imóveis]
+      summary: Cadastrar imóvel (painel do corretor)
+      security: [{ sessionAuth: [] }]
+      requestBody:
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/ImovelEntrada' }
+      responses:
+        '201':
+          description: Imóvel criado
+          content:
+            application/json:
+              schema:
+                type: object
+                properties: { data: { $ref: '#/components/schemas/Imovel' } }
+        '401': { description: Não autenticado, content: { application/json: { schema: { $ref: '#/components/schemas/Erro' } } } }
+        '400': { description: Payload inválido, content: { application/json: { schema: { $ref: '#/components/schemas/Erro' } } } }
+
+  /imoveis/{id}:
+    get:
+      tags: [Imóveis]
+      summary: Detalhe de um imóvel
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: integer }
+      responses:
+        '200':
+          description: Imóvel encontrado
+          content:
+            application/json:
+              schema:
+                type: object
+                properties: { data: { $ref: '#/components/schemas/Imovel' } }
+        '404': { description: Não encontrado, content: { application/json: { schema: { $ref: '#/components/schemas/Erro' } } } }
+    put:
+      tags: [Imóveis]
+      summary: Atualizar imóvel (painel do corretor)
+      description: |
+        Se o imóvel tem `parceiroId` e o `status` mudar, um webhook
+        `imovel.atualizado` é disparado para o parceiro dono do imóvel.
+      security: [{ sessionAuth: [] }]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: integer }
+      requestBody:
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/ImovelEntrada' }
+      responses:
+        '200':
+          description: Imóvel atualizado
+          content:
+            application/json:
+              schema:
+                type: object
+                properties: { data: { $ref: '#/components/schemas/Imovel' } }
+        '401': { description: Não autenticado }
+        '404': { description: Não encontrado }
+    delete:
+      tags: [Imóveis]
+      summary: Excluir imóvel (painel do corretor)
+      security: [{ sessionAuth: [] }]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: integer }
+      responses:
+        '204': { description: Excluído }
+        '401': { description: Não autenticado }
+        '404': { description: Não encontrado }
+
+  /leads:
+    post:
+      tags: [Leads]
+      summary: Enviar interesse (formulário público)
+      description: |
+        Endpoint público. Se o `imovelId` informado pertence a um parceiro,
+        um webhook `lead.criado` é disparado para o parceiro dono do imóvel.
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [nome, contato]
+              properties:
+                imovelId: { type: integer, nullable: true }
+                nome: { type: string }
+                contato: { type: string }
+                mensagem: { type: string }
+      responses:
+        '201':
+          description: Lead registrado
+          content:
+            application/json:
+              schema:
+                type: object
+                properties: { data: { $ref: '#/components/schemas/Lead' } }
+        '400': { description: Payload inválido }
+    get:
+      tags: [Leads]
+      summary: Listar leads (painel do corretor)
+      security: [{ sessionAuth: [] }]
+      responses:
+        '200':
+          description: Lista de leads
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: { type: array, items: { $ref: '#/components/schemas/Lead' } }
+                  total: { type: integer }
+        '401': { description: Não autenticado }
+
+  /leads/{id}:
+    put:
+      tags: [Leads]
+      summary: Atualizar status de um lead (painel do corretor)
+      security: [{ sessionAuth: [] }]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: integer }
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                status: { type: string, enum: [novo, em_atendimento, convertido, perdido] }
+      responses:
+        '200':
+          description: Lead atualizado
+          content:
+            application/json:
+              schema:
+                type: object
+                properties: { data: { $ref: '#/components/schemas/Lead' } }
+        '401': { description: Não autenticado }
+        '404': { description: Não encontrado }
+
+  /auth/login:
+    post:
+      tags: [Autenticação]
+      summary: Login do corretor
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email, senha]
+              properties:
+                email: { type: string, format: email }
+                senha: { type: string, format: password }
+      responses:
+        '200':
+          description: Login bem-sucedido
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: object
+                    properties:
+                      token: { type: string }
+                      nome: { type: string }
+                      email: { type: string }
+        '401': { description: Credenciais inválidas }
+
+  /auth/logout:
+    post:
+      tags: [Autenticação]
+      summary: Logout (invalida a sessão atual)
+      security: [{ sessionAuth: [] }]
+      responses:
+        '204': { description: Sessão encerrada }
+
+  /auth/me:
+    get:
+      tags: [Autenticação]
+      summary: Dados do usuário autenticado
+      security: [{ sessionAuth: [] }]
+      responses:
+        '200':
+          description: Usuário atual
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: object
+                    properties:
+                      nome: { type: string }
+                      email: { type: string }
+        '401': { description: Não autenticado }
+
+  /parceiros:
+    get:
+      tags: [Parceiros (painel)]
+      summary: Listar parceiros
+      security: [{ sessionAuth: [] }]
+      responses:
+        '200':
+          description: Lista de parceiros
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: { type: array, items: { $ref: '#/components/schemas/Parceiro' } }
+                  total: { type: integer }
+        '401': { description: Não autenticado }
+    post:
+      tags: [Parceiros (painel)]
+      summary: Criar parceiro (gera a chave de API)
+      security: [{ sessionAuth: [] }]
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [nome]
+              properties:
+                nome: { type: string }
+                webhookUrl: { type: string, format: uri, nullable: true }
+      responses:
+        '201':
+          description: Parceiro criado — a chave de API vem em texto puro só nesta resposta
+          content:
+            application/json:
+              schema:
+                type: object
+                properties: { data: { $ref: '#/components/schemas/ParceiroComChave' } }
+        '401': { description: Não autenticado }
+        '400': { description: Payload inválido }
+
+  /parceiros/{id}:
+    put:
+      tags: [Parceiros (painel)]
+      summary: Atualizar parceiro (nome, webhook, ativo/suspenso)
+      security: [{ sessionAuth: [] }]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: integer }
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                nome: { type: string }
+                webhookUrl: { type: string, format: uri, nullable: true }
+                ativo: { type: boolean }
+      responses:
+        '200':
+          description: Parceiro atualizado
+          content:
+            application/json:
+              schema:
+                type: object
+                properties: { data: { $ref: '#/components/schemas/Parceiro' } }
+        '401': { description: Não autenticado }
+        '404': { description: Não encontrado }
+    delete:
+      tags: [Parceiros (painel)]
+      summary: Excluir parceiro
+      description: A chave de API para de funcionar imediatamente. O histórico de entregas é apagado. Os imóveis já importados continuam no catálogo (ficam com `origem = parceiro` órfã).
+      security: [{ sessionAuth: [] }]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: integer }
+      responses:
+        '204': { description: Excluído }
+        '401': { description: Não autenticado }
+        '404': { description: Não encontrado }
+
+  /parceiros/{id}/regenerar-chave:
+    post:
+      tags: [Parceiros (painel)]
+      summary: Gerar uma nova chave de API para o parceiro
+      description: A chave antiga é invalidada imediatamente.
+      security: [{ sessionAuth: [] }]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: integer }
+      responses:
+        '200':
+          description: Nova chave gerada — só é retornada nesta resposta
+          content:
+            application/json:
+              schema:
+                type: object
+                properties: { data: { $ref: '#/components/schemas/ParceiroComChave' } }
+        '401': { description: Não autenticado }
+        '404': { description: Não encontrado }
+
+  /parceiros/{id}/entregas:
+    get:
+      tags: [Parceiros (painel)]
+      summary: Ver as últimas entregas de webhook do parceiro (até 50)
+      security: [{ sessionAuth: [] }]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: integer }
+      responses:
+        '200':
+          description: Log de entregas
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: { type: array, items: { $ref: '#/components/schemas/WebhookEntrega' } }
+                  total: { type: integer }
+        '401': { description: Não autenticado }
+
+  /v1/parceiros/imoveis:
+    get:
+      tags: [Parceiros (API v1)]
+      summary: Exportar imóveis ativos da Malb (JSON)
+      description: Retorna todos os imóveis com `status = disponivel`, para o parceiro publicar em seu próprio site/CRM.
+      security: [{ apiKeyAuth: [] }]
+      responses:
+        '200':
+          description: Lista de imóveis disponíveis
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: { type: array, items: { $ref: '#/components/schemas/Imovel' } }
+                  total: { type: integer }
+        '401': { description: Chave de API ausente ou inválida }
+    post:
+      tags: [Parceiros (API v1)]
+      summary: Importar imóvel do parceiro (upsert)
+      description: |
+        Cria ou atualiza um imóvel do parceiro no catálogo da Malb. A chave de
+        upsert é `referenciaExterna` — reenviar com a mesma referência
+        atualiza o imóvel existente em vez de criar um duplicado.
+      security: [{ apiKeyAuth: [] }]
+      requestBody:
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/ImovelParceiroEntrada' }
+      responses:
+        '200':
+          description: Imóvel existente atualizado
+          content:
+            application/json:
+              schema:
+                type: object
+                properties: { data: { $ref: '#/components/schemas/Imovel' } }
+        '201':
+          description: Imóvel novo criado
+          content:
+            application/json:
+              schema:
+                type: object
+                properties: { data: { $ref: '#/components/schemas/Imovel' } }
+        '400': { description: Payload inválido, content: { application/json: { schema: { $ref: '#/components/schemas/Erro' } } } }
+        '401': { description: Chave de API ausente ou inválida }
+
+  /v1/parceiros/imoveis.xml:
+    get:
+      tags: [Parceiros (API v1)]
+      summary: Exportar imóveis ativos da Malb (feed XML próprio)
+      description: |
+        Mesmo conteúdo de `GET /v1/parceiros/imoveis`, em um formato XML
+        próprio do Portal Malb (elemento raiz `<Imoveis>`, um `<Imovel>` por
+        item). Não é o schema proprietário de nenhum portal real — é uma
+        convenção própria, documentada aqui.
+      security: [{ apiKeyAuth: [] }]
+      responses:
+        '200':
+          description: Feed XML
+          content:
+            application/xml:
+              schema:
+                type: string
+        '401': { description: Chave de API ausente ou inválida }
+
+  /v1/parceiros/imoveis/{id}:
+    get:
+      tags: [Parceiros (API v1)]
+      summary: Detalhe de um imóvel pelo ID interno da Malb
+      security: [{ apiKeyAuth: [] }]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: integer }
+      responses:
+        '200':
+          description: Imóvel encontrado
+          content:
+            application/json:
+              schema:
+                type: object
+                properties: { data: { $ref: '#/components/schemas/Imovel' } }
+        '401': { description: Chave de API ausente ou inválida }
+        '404': { description: Não encontrado }
+
+  /v1/parceiros/imoveis/{referenciaExterna}:
+    delete:
+      tags: [Parceiros (API v1)]
+      summary: Remover um imóvel importado (pela referência do parceiro)
+      security: [{ apiKeyAuth: [] }]
+      parameters:
+        - name: referenciaExterna
+          in: path
+          required: true
+          schema: { type: string }
+          description: O mesmo valor de `referenciaExterna` usado na importação
+      responses:
+        '204': { description: Removido }
+        '401': { description: Chave de API ausente ou inválida }
+        '404': { description: Não encontrado para esse parceiro/referência }
+
+  /v1/parceiros/webhook-teste:
+    post:
+      tags: [Parceiros (API v1)]
+      summary: Disparar um webhook de teste
+      description: Envia um evento `teste` para a `webhookUrl` cadastrada, para o parceiro validar que está recebendo entregas corretamente (assinatura HMAC inclusa, mesmo formato dos eventos reais).
+      security: [{ apiKeyAuth: [] }]
+      responses:
+        '202':
+          description: Disparo enfileirado (best-effort, sem confirmação de entrega síncrona)
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: { type: object, properties: { status: { type: string, example: disparado } } }
+        '400': { description: "Parceiro sem webhookUrl cadastrada" }
+        '401': { description: Chave de API ausente ou inválida }

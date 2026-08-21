@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Documentação da API — Portal Malb Imóveis</title>
+<meta name="description" content="Documentação interativa da API do Portal Malb Imóveis, incluindo a API de integração para CRMs parceiros (Fase 4).">
+<link rel="stylesheet" href="assets/app.css">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/swagger-ui/5.17.14/swagger-ui.min.css">
+<style>
+  /* Ajustes mínimos para o Swagger UI conviver com os tokens visuais do site */
+  #swagger-ui-root { background: var(--surface); border: 1px solid var(--border); border-radius: 14px; padding: 0.5rem; margin-top: 1.4rem; box-shadow: var(--shadow); overflow: hidden; }
+  .swagger-ui { color: var(--ink); }
+  .swagger-ui .topbar { display: none; }
+  .doc-intro { max-width: 720px; }
+  .doc-links { display: flex; gap: 0.6rem; flex-wrap: wrap; margin-top: 0.9rem; }
+</style>
+</head>
+<body>
+<div id="topbar"></div>
+
+<main>
+  <div class="section-head" style="margin-top:2rem;">
+    <h1 style="font-size:1.6rem;">Documentação da API</h1>
+  </div>
+  <div class="doc-intro">
+    <p style="color:var(--ink-soft);">
+      Referência completa da API do Portal Malb Imóveis: busca pública de
+      imóveis, leads, o painel do corretor e a API de integração para CRMs
+      parceiros (importação/exportação de imóveis e webhooks de leads e
+      mudanças de status).
+    </p>
+    <p style="color:var(--ink-faint);font-size:.85rem;">
+      Para integrar um CRM parceiro, gere uma chave de API no painel em
+      <strong>Parceiros (CRMs)</strong> e use-a no header <code>X-Api-Key</code>
+      nas rotas <code>/api/v1/parceiros/*</code> abaixo.
+    </p>
+    <div class="doc-links">
+      <a class="btn btn-ghost" href="openapi.yaml">Baixar spec (openapi.yaml)</a>
+      <a class="btn btn-ghost" href="admin/index.html">Ir para o painel</a>
+    </div>
+  </div>
+
+  <div id="swagger-ui-root"></div>
+</main>
+
+<div id="footer"></div>
+
+<script src="assets/app.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/swagger-ui/5.17.14/swagger-ui-bundle.min.js"></script>
+<script>
+document.getElementById('topbar').innerHTML = topbarHTML('', '');
+document.getElementById('footer').innerHTML = footerHTML();
+
+window.addEventListener('load', () => {
+  if (typeof SwaggerUIBundle === 'undefined') {
+    document.getElementById('swagger-ui-root').innerHTML =
+      '<p style="padding:1.4rem;color:var(--ink-faint);">Não foi possível carregar o Swagger UI (biblioteca externa indisponível). ' +
+      'A especificação completa continua disponível para download em <a href="openapi.yaml">openapi.yaml</a>.</p>';
+    return;
+  }
+  SwaggerUIBundle({
+    url: 'openapi.yaml',
+    dom_id: '#swagger-ui-root',
+    presets: [SwaggerUIBundle.presets.apis],
+    layout: 'BaseLayout',
+    docExpansion: 'list',
+    defaultModelsExpandDepth: 1,
+  });
+});
+</script>
+</body>
+</html>

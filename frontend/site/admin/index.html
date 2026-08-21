@@ -128,6 +128,14 @@
           <label>URL da foto (opcional — deixe em branco para manter a atual)</label>
           <input type="text" id="f-foto" placeholder="https://... ou data:image/...">
         </div>
+        <div class="field">
+          <label>Latitude (opcional, para o mapa)</label>
+          <input type="number" id="f-lat" step="any" placeholder="-23.5890">
+        </div>
+        <div class="field">
+          <label>Longitude (opcional, para o mapa)</label>
+          <input type="number" id="f-lng" step="any" placeholder="-46.6350">
+        </div>
       </div>
       <div style="display:flex;gap:.6rem;justify-content:flex-end;margin-top:.6rem;">
         <button type="button" class="btn btn-ghost" id="btn-cancelar">Cancelar</button>
@@ -139,7 +147,7 @@
 
 <script src="../assets/app.js"></script>
 <script>
-document.getElementById('topbar').innerHTML = topbarHTML('');
+document.getElementById('topbar').innerHTML = topbarHTML('', '../');
 
 if (!getToken()) window.location.href = 'login.html';
 
@@ -258,6 +266,8 @@ function abrirModal(id) {
       document.getElementById('f-area').value = im.area;
       document.getElementById('f-descricao').value = im.descricao || '';
       document.getElementById('f-amenities').value = (im.amenities || []).join(', ');
+      document.getElementById('f-lat').value = im.lat != null ? im.lat : '';
+      document.getElementById('f-lng').value = im.lng != null ? im.lng : '';
     }
   }
   document.getElementById('modal-backdrop').classList.add('show');
@@ -288,6 +298,10 @@ document.getElementById('form-imovel').addEventListener('submit', async (e) => {
   };
   const fotoVal = document.getElementById('f-foto').value.trim();
   if (fotoVal) payload.foto = fotoVal;
+  const latVal = document.getElementById('f-lat').value.trim();
+  const lngVal = document.getElementById('f-lng').value.trim();
+  payload.lat = latVal ? Number(latVal) : null;
+  payload.lng = lngVal ? Number(lngVal) : null;
 
   const btn = document.getElementById('btn-salvar');
   btn.disabled = true; btn.textContent = 'Salvando…';

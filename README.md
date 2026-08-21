@@ -6,7 +6,7 @@ Referência funcional e de estrutura: [vivareal.com.br](https://www.vivareal.com
 
 ## Status
 
-**Fase 2 (Backend core) implementada e testada.** A API real está no ar (`backend/`) com banco de dados, CRUD de imóveis, leads e autenticação — e o site público + painel do corretor (`frontend/site/`) já consomem essa API de verdade, não mais dados fictícios estáticos. Para rodar tudo localmente:
+**Fases 2 (Backend core) e 3 (Busca e experiência pública) implementadas e testadas.** A API real está no ar (`backend/`) com banco de dados, CRUD de imóveis, leads e autenticação — e o site público + painel do corretor (`frontend/site/`) já consomem essa API de verdade, não mais dados fictícios estáticos. A busca tem filtros avançados (bairro, área, ordenação), há favoritos salvos no navegador, mapa na página do imóvel (OpenStreetMap) e SEO básico (`sitemap.xml`, `robots.txt`, meta tags). Para rodar tudo localmente:
 
 ```bash
 cd backend && node src/server.js

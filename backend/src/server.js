@@ -28,6 +28,7 @@ const { requireAuth } = require('./auth');
 const { registerImoveisRoutes } = require('./routes/imoveis');
 const { registerLeadsRoutes } = require('./routes/leads');
 const { registerAuthRoutes } = require('./routes/auth');
+const { db } = require('./db');
 
 const PORT = process.env.PORT || 3001;
 const STATIC_ROOT = path.join(__dirname, '..', '..', 'frontend', 'site');
@@ -41,6 +42,7 @@ const MIME = {
   '.png': 'image/png',
   '.jpg': 'image/jpeg',
   '.ico': 'image/x-icon',
+  '.txt': 'text/plain; charset=utf-8',
 };
 
 const router = new Router();
@@ -127,6 +129,19 @@ const server = http.createServer(async (req, res) => {
 
   if (pathname === '/api/health') {
     return sendJson(res, 200, { status: 'ok', timestamp: new Date().toISOString() });
+  }
+
+  if (pathname === '/sitemap.xml') {
+    const base = `http://${req.headers.host}`;
+    const rows = db.prepare("SELECT id, updated_at FROM imoveis WHERE status = 'disponivel'").all();
+    const paginasEstaticas = ['/', '/busca.html', '/favoritos.html'];
+    const urls = [
+      ...paginasEstaticas.map((p) => `<url><loc>${base}${p}</loc></url>`),
+      ...rows.map((r) => `<url><loc>${base}/imovel.html?id=${r.id}</loc><lastmod>${(r.updated_at || '').slice(0, 10)}</lastmod></url>`),
+    ];
+    const xml = `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n${urls.join('\n')}\n</urlset>`;
+    res.writeHead(200, { 'Content-Type': 'application/xml; charset=utf-8' });
+    return res.end(xml);
   }
 
   if (pathname.startsWith('/api/')) {

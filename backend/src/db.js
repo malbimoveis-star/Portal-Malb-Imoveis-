@@ -44,6 +44,8 @@ db.exec(`
     descricao TEXT NOT NULL DEFAULT '',
     amenities TEXT NOT NULL DEFAULT '[]',
     foto TEXT NOT NULL DEFAULT '',
+    lat REAL,
+    lng REAL,
     status TEXT NOT NULL DEFAULT 'disponivel' CHECK (status IN ('disponivel','reservado','vendido','alugado')),
     created_at TEXT NOT NULL DEFAULT (datetime('now')),
     updated_at TEXT NOT NULL DEFAULT (datetime('now'))
@@ -77,6 +79,18 @@ db.exec(`
   );
 `);
 
+// Migração leve: adiciona colunas novas em bancos já existentes (criados antes
+// de lat/lng existirem no schema). node:sqlite não tem "IF NOT EXISTS" para
+// ALTER TABLE ADD COLUMN, então checamos pragma_table_info antes.
+function garantirColuna(tabela, coluna, definicao) {
+  const cols = db.prepare(`SELECT name FROM pragma_table_info(?)`).all(tabela);
+  if (!cols.some((c) => c.name === coluna)) {
+    db.exec(`ALTER TABLE ${tabela} ADD COLUMN ${coluna} ${definicao}`);
+  }
+}
+garantirColuna('imoveis', 'lat', 'REAL');
+garantirColuna('imoveis', 'lng', 'REAL');
+
 function hashPassword(password, salt = crypto.randomBytes(16).toString('hex')) {
   const hash = crypto.scryptSync(password, salt, 64).toString('hex');
   return { hash, salt };
@@ -87,8 +101,8 @@ function seedIfEmpty() {
   if (count === 0 && fs.existsSync(SEED_PATH)) {
     const seed = JSON.parse(fs.readFileSync(SEED_PATH, 'utf8'));
     const insert = db.prepare(`
-      INSERT INTO imoveis (tipo, finalidade, preco, titulo, bairro, cidade, quartos, banheiros, vagas, area, descricao, amenities, foto)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      INSERT INTO imoveis (tipo, finalidade, preco, titulo, bairro, cidade, quartos, banheiros, vagas, area, descricao, amenities, foto, lat, lng)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `);
     const insertMany = db.transaction ? null : null; // node:sqlite não tem helper de transação de alto nível ainda
     db.exec('BEGIN');
@@ -107,7 +121,9 @@ function seedIfEmpty() {
           im.area,
           im.desc || '',
           JSON.stringify(im.amenities || []),
-          im.foto || ''
+          im.foto || '',
+          im.lat != null ? Number(im.lat) : null,
+          im.lng != null ? Number(im.lng) : null
         );
       }
       db.exec('COMMIT');

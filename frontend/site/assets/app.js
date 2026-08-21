@@ -9,6 +9,108 @@ function fmtPreco(valor, finalidade) {
   return finalidade === 'aluguel' ? s : s;
 }
 
+/* SEO — Fase 6.1. O servidor (backend/src/seo.js) já injeta o título, a
+   description, o canonical, Open Graph, Twitter Card e o JSON-LD certos no
+   HTML antes de servir a página (o que garante que robôs que não executam
+   JavaScript — como o crawler de prévia de link do WhatsApp — também vejam
+   os dados corretos). O que está aqui é a mesma lógica, em espelho, do lado
+   do navegador: garante consistência se a página for aberta sem passar pelo
+   servidor (ex: um outro host estático servindo só o front) e mantém o
+   comportamento já testado desde a Fase 3 de atualizar o título ao carregar
+   os dados do imóvel via API. */
+const VERBO_FINALIDADE = { venda: 'comprar', aluguel: 'alugar' };
+const TIPO_SCHEMA = { Apartamento: 'Apartment', Studio: 'Apartment', Kitnet: 'Apartment', Cobertura: 'Apartment', Casa: 'House' };
+
+function setMetaConteudo(id, valor) {
+  const el = document.getElementById(id);
+  if (el) el.setAttribute(el.tagName === 'LINK' ? 'href' : 'content', valor);
+}
+
+function setJsonLd(id, objeto) {
+  const el = document.getElementById(id);
+  if (el) el.textContent = JSON.stringify(objeto);
+}
+
+function aplicarSeoBusca(estado) {
+  const verbo = VERBO_FINALIDADE[estado.finalidade];
+  let titulo = estado.tipo ? `${estado.tipo} para ${verbo || 'comprar ou alugar'}` : `Buscar imóveis para ${verbo || 'comprar ou alugar'}`;
+  if (estado.bairro) titulo += ` em ${estado.bairro}`;
+  titulo += ' | Malb Imóveis';
+
+  let descricao = `Encontre ${estado.tipo ? estado.tipo.toLowerCase() : 'imóveis'} para ${verbo || 'comprar ou alugar'}`;
+  if (estado.bairro) descricao += ` em ${estado.bairro}`;
+  descricao += ' na Malb Imóveis. Filtre por preço, quartos e área e fale direto com o corretor.';
+
+  // Só bairro/tipo/finalidade entram no canonical — os demais filtros
+  // (preço, área, quartos, ordenação, busca livre) não geram uma URL
+  // "oficial" própria, pra não competir no índice do Google com variações
+  // quase idênticas da mesma busca.
+  const params = new URLSearchParams();
+  if (estado.finalidade) params.set('finalidade', estado.finalidade);
+  if (estado.tipo) params.set('tipo', estado.tipo);
+  if (estado.bairro) params.set('bairro', estado.bairro);
+  const qs = params.toString();
+  const url = window.location.origin + '/busca.html' + (qs ? '?' + qs : '');
+
+  document.title = titulo;
+  setMetaConteudo('meta-desc', descricao);
+  setMetaConteudo('seo-canonical', url);
+  setMetaConteudo('og-title', titulo);
+  setMetaConteudo('og-desc', descricao);
+  setMetaConteudo('og-url', url);
+  setMetaConteudo('twitter-title', titulo);
+  setMetaConteudo('twitter-desc', descricao);
+
+  const itemListElement = [
+    { '@type': 'ListItem', position: 1, name: 'Início', item: window.location.origin + '/' },
+    { '@type': 'ListItem', position: 2, name: 'Buscar imóveis', item: window.location.origin + '/busca.html' },
+  ];
+  if (estado.bairro) itemListElement.push({ '@type': 'ListItem', position: 3, name: estado.bairro, item: url });
+  setJsonLd('ld-json', { '@context': 'https://schema.org', '@type': 'BreadcrumbList', itemListElement });
+}
+
+function aplicarSeoImovel(im) {
+  const verbo = VERBO_FINALIDADE[im.finalidade] || 'comprar';
+  const url = window.location.origin + '/imovel.html?id=' + im.id;
+  const titulo = `${im.titulo} para ${verbo} em ${im.bairro}, ${im.cidade} | Malb Imóveis`;
+  const descricao = `${im.tipo} para ${verbo} em ${im.bairro}, ${im.cidade}: ${im.quartos} quarto${im.quartos === 1 ? '' : 's'}, ${im.banheiros} banheiro${im.banheiros === 1 ? '' : 's'}, ${im.area}m². ${fmtPreco(im.preco, im.finalidade)}${im.finalidade === 'aluguel' ? '/mês' : ''}. Fale com a Malb Imóveis.`;
+
+  document.title = titulo;
+  setMetaConteudo('meta-desc', descricao);
+  setMetaConteudo('seo-canonical', url);
+  setMetaConteudo('og-title', titulo);
+  setMetaConteudo('og-desc', descricao);
+  setMetaConteudo('og-url', url);
+  setMetaConteudo('twitter-title', titulo);
+  setMetaConteudo('twitter-desc', descricao);
+
+  const about = {
+    '@type': TIPO_SCHEMA[im.tipo] || 'Place',
+    name: im.titulo,
+    address: { '@type': 'PostalAddress', addressLocality: im.cidade, addressRegion: 'SP', addressCountry: 'BR' },
+    numberOfRooms: im.quartos,
+    numberOfBathroomsTotal: im.banheiros,
+    floorSize: { '@type': 'QuantitativeValue', value: im.area, unitCode: 'MTK' },
+  };
+  if (im.lat != null && im.lng != null) about.geo = { '@type': 'GeoCoordinates', latitude: im.lat, longitude: im.lng };
+  setJsonLd('ld-json', {
+    '@context': 'https://schema.org',
+    '@type': 'RealEstateListing',
+    name: im.titulo,
+    description: im.descricao || descricao,
+    url,
+    about,
+    offers: {
+      '@type': 'Offer',
+      price: im.preco,
+      priceCurrency: 'BRL',
+      availability: 'https://schema.org/InStock',
+      businessFunction: im.finalidade === 'aluguel' ? 'https://schema.org/LeaseOut' : 'https://schema.org/Sell',
+      url,
+    },
+  });
+}
+
 function getToken() {
   try { return localStorage.getItem('malb_admin_token'); } catch { return null; }
 }
@@ -62,7 +164,13 @@ async function api(path, { method = 'GET', body, auth = false } = {}) {
 }
 
 function thumbHTML(im) {
-  if (im.foto) return `<img src="${im.foto}" alt="Foto ilustrativa do imóvel" loading="lazy">`;
+  // Alt text descritivo (tipo + bairro + finalidade) em vez de um texto
+  // genérico — ajuda a indexação no Google Imagens, que é uma fonte real
+  // de tráfego para fotos de imóveis, e também a acessibilidade (leitores
+  // de tela descrevem o imóvel, não só "foto ilustrativa").
+  const verbo = im.finalidade === 'aluguel' ? 'para alugar' : 'à venda';
+  const alt = `${im.tipo} ${verbo} em ${im.bairro}, ${im.cidade} — Malb Imóveis`;
+  if (im.foto) return `<img src="${im.foto}" alt="${alt.replace(/"/g, '&quot;')}" loading="lazy">`;
   return `<div style="width:100%;height:100%;display:flex;align-items:center;justify-content:center;color:var(--ink-faint);font-size:.8rem;">sem foto</div>`;
 }
 

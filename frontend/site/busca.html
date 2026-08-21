@@ -3,8 +3,19 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Buscar imóveis — Portal Malb Imóveis</title>
-<meta name="description" content="Filtre imóveis para comprar ou alugar por bairro, tipo, preço, quartos e área na Malb Imóveis.">
+<title id="seo-title">Buscar imóveis para comprar ou alugar | Malb Imóveis</title>
+<meta name="description" id="meta-desc" content="Filtre imóveis para comprar ou alugar por bairro, tipo, preço, quartos e área na Malb Imóveis.">
+<meta name="robots" content="index, follow">
+<link rel="canonical" id="seo-canonical" href="">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="Malb Imóveis">
+<meta property="og:title" id="og-title" content="Buscar imóveis para comprar ou alugar | Malb Imóveis">
+<meta property="og:description" id="og-desc" content="Filtre imóveis para comprar ou alugar por bairro, tipo, preço, quartos e área na Malb Imóveis.">
+<meta property="og:url" id="og-url" content="">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:title" id="twitter-title" content="Buscar imóveis para comprar ou alugar | Malb Imóveis">
+<meta name="twitter:description" id="twitter-desc" content="Filtre imóveis para comprar ou alugar por bairro, tipo, preço, quartos e área na Malb Imóveis.">
+<script type="application/ld+json" id="ld-json">null</script>
 <link rel="stylesheet" href="assets/app.css">
 </head>
 <body>
@@ -188,6 +199,7 @@ document.getElementById('sel-bairro').addEventListener('change', (e) => { estado
 document.getElementById('sel-ordem').addEventListener('change', (e) => { estado.orderBy = e.target.value; syncUI(); buscar(); });
 document.getElementById('btn-limpar').addEventListener('click', limpar);
 
+aplicarSeoBusca(estado);
 syncUI();
 popularBairros();
 buscar();

@@ -3,11 +3,54 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Portal Malb Imóveis — Compre e alugue imóveis</title>
-<meta name="description" content="Encontre apartamentos, casas e imóveis comerciais para comprar ou alugar com a Malb Imóveis. Busque por bairro, preço e características e fale direto com o corretor.">
+<title>Apartamentos e Casas para Comprar ou Alugar em São Paulo | Malb Imóveis</title>
+<meta name="description" content="Encontre apartamentos, casas e imóveis comerciais para comprar ou alugar em São Paulo e região com a Malb Imóveis. Busque por bairro, preço e características e fale direto com o corretor.">
+<meta name="robots" content="index, follow">
+<link rel="canonical" id="seo-canonical" href="">
 <meta property="og:type" content="website">
-<meta property="og:title" content="Portal Malb Imóveis">
-<meta property="og:description" content="Busque, compare e fale direto com o corretor — imóveis para comprar ou alugar.">
+<meta property="og:site_name" content="Malb Imóveis">
+<meta property="og:title" content="Apartamentos e Casas para Comprar ou Alugar em São Paulo | Malb Imóveis">
+<meta property="og:description" content="Busque, compare e fale direto com o corretor — imóveis para comprar ou alugar em São Paulo e região.">
+<meta property="og:url" id="og-url" content="">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:title" content="Apartamentos e Casas para Comprar ou Alugar em São Paulo | Malb Imóveis">
+<meta name="twitter:description" content="Busque, compare e fale direto com o corretor — imóveis para comprar ou alugar em São Paulo e região.">
+<script type="application/ld+json" id="ld-json-org">
+{
+  "@context": "https://schema.org",
+  "@type": "RealEstateAgent",
+  "name": "Malb Imóveis",
+  "email": "malbimoveis@gmail.com",
+  "areaServed": [
+    { "@type": "City", "name": "São Paulo" },
+    { "@type": "City", "name": "Cotia" }
+  ],
+  "address": { "@type": "PostalAddress", "addressRegion": "SP", "addressCountry": "BR" }
+}
+</script>
+<script type="application/ld+json" id="ld-json-faq">
+{
+  "@context": "https://schema.org",
+  "@type": "FAQPage",
+  "mainEntity": [
+    {
+      "@type": "Question",
+      "name": "Como buscar apartamentos para alugar em São Paulo na Malb Imóveis?",
+      "acceptedAnswer": { "@type": "Answer", "text": "Use a busca da Malb Imóveis para filtrar por bairro, tipo de imóvel, faixa de preço, número de quartos e área. Os resultados mostram só imóveis disponíveis para aluguel na cidade e no bairro escolhidos." }
+    },
+    {
+      "@type": "Question",
+      "name": "É preciso pagar alguma taxa para falar com o corretor?",
+      "acceptedAnswer": { "@type": "Answer", "text": "Não. Enviar interesse em um imóvel pelo site da Malb Imóveis é gratuito — o formulário na página do imóvel manda sua mensagem direto para o corretor responsável." }
+    },
+    {
+      "@type": "Question",
+      "name": "Quais bairros de São Paulo a Malb Imóveis atende?",
+      "acceptedAnswer": { "@type": "Answer", "text": "A Malb Imóveis tem imóveis em bairros como Vila Mariana, Itaim Bibi, Moema, Jardins, Vila Madalena, Perdizes, Faria Lima, Brooklin, Bela Vista e Centro, além da região de Cotia — a lista completa aparece no filtro de bairro da busca." }
+    }
+  ]
+}
+</script>
 <link rel="stylesheet" href="assets/app.css">
 </head>
 <body>
@@ -64,6 +107,8 @@
 <script>
 document.getElementById('topbar').innerHTML = topbarHTML('home');
 document.getElementById('footer').innerHTML = footerHTML();
+document.getElementById('seo-canonical').setAttribute('href', window.location.origin + '/');
+document.getElementById('og-url').setAttribute('content', window.location.origin + '/');
 
 document.getElementById('form-busca').addEventListener('submit', (e) => {
   e.preventDefault();

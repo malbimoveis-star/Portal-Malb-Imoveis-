@@ -1,0 +1,105 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Definir senha — Portal Malb Imóveis</title>
+<link rel="stylesheet" href="../assets/app.css">
+</head>
+<body>
+<div id="topbar"></div>
+
+<main>
+  <div class="login-shell">
+    <h1 id="titulo">Definir senha</h1>
+    <p class="sub" id="sub">Verificando o link…</p>
+    <div class="error-msg" id="erro"></div>
+
+    <form class="form-stack" id="form-senha" style="display:none;">
+      <div class="field">
+        <label for="senha">Nova senha</label>
+        <div class="campo-senha">
+          <input type="password" id="senha" required minlength="6" autocomplete="new-password">
+          <button type="button" class="btn-toggle-senha" data-toggle-senha="senha" tabindex="-1"></button>
+        </div>
+      </div>
+      <div class="field">
+        <label for="senha2">Confirme a nova senha</label>
+        <div class="campo-senha">
+          <input type="password" id="senha2" required minlength="6" autocomplete="new-password">
+          <button type="button" class="btn-toggle-senha" data-toggle-senha="senha2" tabindex="-1"></button>
+        </div>
+      </div>
+      <button type="submit" class="btn btn-primary" id="btn-salvar" style="width:100%;justify-content:center;">Salvar senha</button>
+    </form>
+
+    <p class="hint"><a href="login.html">Voltar para o login</a></p>
+  </div>
+</main>
+
+<script src="../assets/app.js"></script>
+<script>
+document.getElementById('topbar').innerHTML = topbarHTML('', '../');
+ligarTogglesSenha();
+
+const params = new URLSearchParams(window.location.search);
+const token = params.get('token');
+const erroEl = document.getElementById('erro');
+const subEl = document.getElementById('sub');
+const tituloEl = document.getElementById('titulo');
+const form = document.getElementById('form-senha');
+
+function mostrarErro(msg) {
+  erroEl.textContent = msg;
+  erroEl.classList.add('show');
+  subEl.textContent = '';
+  form.style.display = 'none';
+}
+
+(async () => {
+  if (!token) return mostrarErro('Link inválido: nenhum token informado.');
+  try {
+    const resp = await fetch(API_BASE + '/auth/token/' + encodeURIComponent(token));
+    const data = await resp.json().catch(() => ({}));
+    if (!resp.ok) throw new Error(data.error || 'Link inválido ou expirado.');
+    const info = data.data;
+    if (info.tipo === 'convite') {
+      tituloEl.textContent = 'Bem-vindo(a) ao painel';
+      subEl.textContent = `Olá, ${info.nome}! Defina a senha que você vai usar para entrar no painel.`;
+    } else {
+      tituloEl.textContent = 'Redefinir senha';
+      subEl.textContent = `Olá, ${info.nome}! Escolha sua nova senha.`;
+    }
+    form.style.display = '';
+  } catch (err) {
+    mostrarErro(err.message.includes('404') || /inválido|expirado/i.test(err.message)
+      ? 'Este link é inválido ou já expirou. Peça um novo convite ou solicite "Esqueci minha senha" novamente.'
+      : 'Erro: ' + err.message);
+  }
+})();
+
+form.addEventListener('submit', async (e) => {
+  e.preventDefault();
+  erroEl.classList.remove('show');
+  const senha = document.getElementById('senha').value;
+  const senha2 = document.getElementById('senha2').value;
+  if (senha !== senha2) {
+    erroEl.textContent = 'As senhas não coincidem.';
+    erroEl.classList.add('show');
+    return;
+  }
+  const btn = document.getElementById('btn-salvar');
+  btn.disabled = true; btn.textContent = 'Salvando…';
+  try {
+    await api('/auth/definir-senha', { method: 'POST', body: { token, senha } });
+    showToast('Senha definida! Faça login com sua nova senha.');
+    setTimeout(() => { window.location.href = 'login.html'; }, 1200);
+  } catch (err) {
+    erroEl.textContent = 'Erro: ' + err.message;
+    erroEl.classList.add('show');
+    btn.disabled = false; btn.textContent = 'Salvar senha';
+  }
+});
+</script>
+</body>
+</html>

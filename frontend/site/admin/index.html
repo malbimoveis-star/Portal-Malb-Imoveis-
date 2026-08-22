@@ -310,6 +310,7 @@
             <input type="password" id="u-senha" minlength="6" placeholder="Mínimo 6 caracteres">
             <button type="button" class="btn-toggle-senha" data-toggle-senha="u-senha" tabindex="-1"></button>
           </div>
+          <p class="hint" id="u-senha-hint" style="margin-top:.4rem;">Deixe em branco para enviar um convite por e-mail — a pessoa define a própria senha pelo link.</p>
         </div>
         <div class="field span2" id="u-ativo-campo" style="display:none;">
           <label style="display:flex;align-items:center;gap:.5rem;font-weight:400;">
@@ -598,8 +599,11 @@ function abrirModalUsuario(id) {
   document.getElementById('u-id').value = '';
   document.getElementById('modal-usuario-titulo').textContent = id ? 'Editar usuário' : 'Novo usuário';
   document.getElementById('u-ativo-campo').style.display = id ? '' : 'none';
-  document.getElementById('u-senha').required = !id;
-  document.getElementById('u-senha-label').textContent = id ? 'Nova senha (deixe em branco para manter)' : 'Senha';
+  document.getElementById('u-senha').required = false;
+  document.getElementById('u-senha-label').textContent = id ? 'Nova senha' : 'Senha (opcional)';
+  document.getElementById('u-senha-hint').textContent = id
+    ? 'Deixe em branco para manter a senha atual.'
+    : 'Deixe em branco para enviar um convite por e-mail — a pessoa define a própria senha pelo link.';
   if (id) {
     const u = usuariosCache.find(x => x.id === id);
     if (u) {
@@ -639,8 +643,23 @@ document.getElementById('form-usuario').addEventListener('submit', async (e) => 
       await api('/usuarios/' + id, { method: 'PUT', auth: true, body: payload });
       showToast('Usuário atualizado.');
     } else {
-      await api('/usuarios', { method: 'POST', auth: true, body: payload });
-      showToast('Usuário criado.');
+      const resp = await api('/usuarios', { method: 'POST', auth: true, body: payload });
+      if (resp.convite) {
+        if (resp.convite.enviado) {
+          showToast('Usuário criado. Convite enviado por e-mail.');
+        } else {
+          // SMTP ainda não configurado (ou falhou o envio) — copia o link
+          // pra área de transferência pra o admin poder mandar na mão.
+          try {
+            await navigator.clipboard.writeText(resp.convite.link);
+            showToast('Usuário criado. Não deu pra enviar o e-mail — link de convite copiado, envie manualmente.', 5000);
+          } catch {
+            showToast('Usuário criado. Não deu pra enviar o e-mail — link de convite: ' + resp.convite.link, 8000);
+          }
+        }
+      } else {
+        showToast('Usuário criado.');
+      }
     }
     fecharModalUsuario();
     await carregarEquipe();

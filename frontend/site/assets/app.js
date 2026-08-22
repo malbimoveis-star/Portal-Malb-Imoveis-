@@ -242,7 +242,7 @@ function cardHTML(im) {
   </a>`;
 }
 
-function showToast(msg) {
+function showToast(msg, ms = 2600) {
   let el = document.querySelector('.toast');
   if (!el) {
     el = document.createElement('div');
@@ -252,7 +252,7 @@ function showToast(msg) {
   el.textContent = msg;
   el.classList.add('show');
   clearTimeout(el._t);
-  el._t = setTimeout(() => el.classList.remove('show'), 2600);
+  el._t = setTimeout(() => el.classList.remove('show'), ms);
 }
 
 function topbarHTML(active, base = '') {

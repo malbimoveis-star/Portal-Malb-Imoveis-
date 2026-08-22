@@ -31,6 +31,33 @@ Use o token nas rotas protegidas: header `Authorization: Bearer <token>`. Sessõ
 
 Desde a Fase 5, cada usuário tem um `papel` (`admin` ou `corretor`) e um `ativo`. Um usuário desativado não consegue logar — e se for desativado enquanto já está logado, a sessão dele para de valer na próxima requisição (não precisa esperar o token de 7 dias expirar). Só `admin` pode gerenciar a equipe (ver **Equipe** abaixo); `corretor` pode ver a lista de colegas, atender leads e ver/editar imóveis normalmente.
 
+**Aviso de login por e-mail (Fase 6.2):** todo login bem-sucedido dispara um e-mail para o usuário avisando que houve um acesso, com data/hora. O envio acontece em segundo plano — nunca atrasa nem falha a resposta do login, mesmo se o e-mail não puder ser enviado.
+
+### `POST /api/auth/esqueci-senha`
+
+```json
+// corpo da requisição
+{ "email": "alguem@exemplo.com" }
+```
+```json
+// resposta 200 (sempre a mesma, exista ou não o e-mail)
+{ "data": { "mensagem": "Se esse e-mail estiver cadastrado, enviamos um link para redefinir a senha." } }
+```
+
+Se o e-mail existir e a conta estiver ativa, gera um token de redefinição de uso único (válido por 1 hora) e envia por e-mail um link para `/admin/definir-senha.html?token=...`. A resposta é idêntica nos dois casos de propósito, para não revelar quais e-mails têm cadastro no sistema.
+
+### `GET /api/auth/token/:token`
+Valida um token de convite ou de redefinição de senha, antes de mostrar o formulário de nova senha. `404` se o token não existir, já tiver sido usado ou estiver expirado. Resposta: `{ "data": { "tipo": "convite" | "redefinicao", "nome", "email" } }`.
+
+### `POST /api/auth/definir-senha`
+
+```json
+// corpo da requisição
+{ "token": "...", "senha": "novaSenha123" }
+```
+
+Define a senha da conta associada ao token (mín. 6 caracteres) e marca o token como usado — não pode ser reaproveitado. `400` se o token for inválido/expirado/já usado ou a senha for curta demais. Ao ser usado, também derruba qualquer sessão antiga daquela conta, por segurança.
+
 ## Imóveis
 
 ### `GET /api/imoveis`
@@ -98,7 +125,9 @@ Gestão de quem tem login no painel — Fase 5. `GET` é liberado pra qualquer u
 Lista a equipe: `{ "data": [ { "id", "nome", "email", "creci", "papel", "ativo", "createdAt" } ], "total": N }`. Nunca inclui hash de senha.
 
 ### `POST /api/usuarios` 🔒 (admin)
-Cria um novo login. Corpo: `{ "nome", "email", "senha" (mín. 6 caracteres), "creci" (opcional), "papel" (opcional, `"corretor"` por padrão) }`. `409` se o e-mail já estiver em uso.
+Cria um novo login. Corpo: `{ "nome", "email", "senha" (opcional, mín. 6 caracteres se enviada), "creci" (opcional), "papel" (opcional, `"corretor"` por padrão) }`. `409` se o e-mail já estiver em uso.
+
+**Convite por e-mail (Fase 6.2):** se `senha` não for enviada, a conta é criada sem senha utilizável e um convite de acesso é mandado por e-mail (link de uso único, válido por 3 dias, para `/admin/definir-senha.html`) — a pessoa escolhe a própria senha. A resposta inclui `convite: { link, enviado }` nesse caso (`null` quando o admin definiu a senha na hora). O `link` também vem sempre na resposta, mesmo quando o e-mail foi enviado com sucesso — serve de reforço caso o admin precise repassar manualmente.
 
 ### `PUT /api/usuarios/:id` 🔒 (admin)
 Atualização parcial: `nome`, `email`, `creci`, `papel`, `ativo`, `senha` (opcional — só troca se enviada). Desativar um usuário (`ativo: false`) derruba as sessões dele na hora. Há uma trava de segurança: não é possível rebaixar de `admin` para `corretor` nem desativar o **último** admin ativo do sistema — a chamada retorna `400` para proteger o painel de ficar sem ninguém com acesso total.

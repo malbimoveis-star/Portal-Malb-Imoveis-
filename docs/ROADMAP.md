@@ -119,6 +119,19 @@ Pedido do cliente: usar meta tags de palavras-chave para aparecer mais no Google
 
 **Limitação conhecida:** não há `og:image` funcional. As fotos dos imóveis são guardadas como base64 direto no banco (`data:image/jpeg;base64,...`), não como arquivos com uma URL própria — e `og:image` (usado pelo WhatsApp/Facebook para mostrar a miniatura no link) só aceita uma URL, não uma imagem embutida. Resolver isso de verdade exigiria passar a servir as fotos como arquivos próprios (um endpoint de imagem, ex: `/api/imoveis/:id/foto`) — uma mudança de arquitetura de armazenamento de imagem, fora do escopo de "meta tags de SEO". Fica como uma melhoria natural de uma fase futura.
 
+**Fase 6.2 — Convite de acesso por e-mail, "esqueci minha senha" e aviso de login (a pedido, fora da numeração original do roadmap):**
+
+Pedidos do cliente: dar acesso ao painel para vários corretores/colaboradores sem passar a senha de cada um por fora, avisar por e-mail quando alguém faz login, e ter um "esqueci minha senha" — além da lupa de mostrar/ocultar senha (já feita na Fase 6.1).
+
+- [x] Ao cadastrar um novo usuário na aba Equipe sem definir uma senha, o sistema gera um link de convite de uso único (válido por 3 dias) e envia por e-mail — a pessoa define a própria senha, que nunca fica registrada em nenhuma caixa de entrada. O admin ainda pode, se preferir, digitar a senha na hora (comportamento antigo, sem convite)
+- [x] "Esqueci minha senha" (`admin/esqueci-senha.html`) — gera um link de redefinição de uso único (válido por 1 hora); a resposta da API é sempre a mesma, exista ou não conta com aquele e-mail, para não revelar quais e-mails têm cadastro
+- [x] Tela única de "definir senha" (`admin/definir-senha.html`) reaproveitada tanto para o convite quanto para a redefinição — valida o link antes de mostrar o formulário e usa a mesma lupa de mostrar/ocultar senha da Fase 6.1
+- [x] Aviso por e-mail a cada login bem-sucedido (admin e corretores), com data/hora — disparado em segundo plano, sem atrasar nem arriscar o login em si
+- [x] Cliente SMTP próprio (`backend/src/email.js`), sem nenhum pacote de npm — fala o protocolo SMTP diretamente sobre uma conexão TLS. Se as variáveis `SMTP_*` não estiverem configuradas, os e-mails não travam o sistema: só ficam registrados no console (suficiente para testar os fluxos em desenvolvimento local)
+- [x] Testado de ponta a ponta: convite → e-mail → definir senha → login com a senha nova; "esqueci senha" com e-mail existente e inexistente (mesma resposta nos dois casos); token expirado/reutilizado corretamente rejeitado; senha curta rejeitada; criação de usuário com senha definida pelo admin continua funcionando como antes (sem convite)
+
+**Configuração pendente:** o envio real de e-mail depende de uma senha de aplicativo do Gmail (`SMTP_PASS` em `backend/.env`, gerada em `myaccount.google.com/apppasswords` com a conta `malbimoveis@gmail.com`) — sem ela, o sistema funciona normalmente, só que os e-mails ficam só registrados no console em vez de chegar de verdade.
+
 ## 5. Decisões pendentes (precisamos da sua confirmação)
 
 1. **Stack técnica** — confirmar NestJS + Prisma + PostgreSQL para produção. A stack atual (Node puro + SQLite) já está pronta para produção (Fase 6), mas continua sendo uma implementação alternativa por falta de acesso ao npm no ambiente onde o projeto foi construído — a migração de framework fica pendente de um ambiente com esse acesso (ver `infra/README.md`).

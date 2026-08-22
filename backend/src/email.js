@@ -120,8 +120,9 @@ async function enviarEmail({ to, subject, html, text }) {
     await enviarEmailBruto({ to, from: from || user, subject, html, text });
     return { enviado: true };
   } catch (err) {
-    console.error(`[email] Falha ao enviar e-mail para ${to}:`, err.message);
-    return { enviado: false, motivo: err.message };
+    const detalhe = String(err && (err.message || err.code || err)).replace(/\s+/g, ' ').trim();
+    console.error(`[email] Falha ao enviar e-mail para ${to} | erro: ${detalhe || '(sem mensagem)'} | code=${err && err.code}`);
+    return { enviado: false, motivo: detalhe };
   }
 }
 

@@ -65,12 +65,15 @@ Ver `docs/API.md` para a referência completa. Resumo:
 | GET | `/api/leads/:id/interacoes` | sim | Linha do tempo de atendimento do lead — Fase 5 |
 | POST | `/api/leads/:id/interacoes` | sim | Registra uma nota manual no atendimento — Fase 5 |
 | GET | `/api/usuarios` | sim | Lista a equipe (quem tem login no painel) — Fase 5 |
-| POST | `/api/usuarios` | sim (admin) | Cria um novo login — Fase 5 |
+| POST | `/api/usuarios` | sim (admin) | Cria um novo login — Fase 5. Sem `senha` no corpo, envia um convite por e-mail em vez de exigir senha na hora (Fase 6.2) |
 | PUT | `/api/usuarios/:id` | sim (admin) | Edita/desativa um usuário — Fase 5 |
 | DELETE | `/api/usuarios/:id` | sim (admin) | Exclui um usuário — Fase 5 |
-| POST | `/api/auth/login` | não | Login (e-mail + senha) |
+| POST | `/api/auth/login` | não | Login (e-mail + senha) — dispara um e-mail de aviso de login em segundo plano (Fase 6.2) |
 | POST | `/api/auth/logout` | sim | Encerra a sessão |
 | GET | `/api/auth/me` | sim | Dados do usuário logado |
+| POST | `/api/auth/esqueci-senha` | não | Gera um link de redefinição de senha e envia por e-mail (resposta idêntica exista ou não o e-mail) — Fase 6.2 |
+| GET | `/api/auth/token/:token` | não | Valida um link de convite/redefinição antes de mostrar o formulário de nova senha — Fase 6.2 |
+| POST | `/api/auth/definir-senha` | não | Define a senha a partir de um token de convite ou redefinição (uso único) — Fase 6.2 |
 | GET | `/api/health` | não | Health check |
 | GET | `/sitemap.xml` | não | Sitemap gerado a partir dos imóveis ativos, com `priority`/`changefreq` por tipo de página (Fase 3, ampliado na Fase 6.1 — SEO) |
 | GET | `/imovel.html`, `/busca.html` | não | Servidas com título, description, Open Graph, Twitter Card e JSON-LD gerados **no servidor** por `src/seo.js` antes do HTML ser enviado (Fase 6.1 — SEO) |

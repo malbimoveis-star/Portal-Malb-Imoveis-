@@ -51,6 +51,18 @@ const config = {
     // endpoint mais exposto a spam/abuso automatizado.
     leadPublico: { janelaMs: int(process.env.RATE_LIMIT_LEAD_WINDOW_MS, 60 * 60 * 1000), max: int(process.env.RATE_LIMIT_LEAD_MAX, 20) },
   },
+
+  // Envio de e-mail (convite de acesso, "esqueci senha", aviso de login) —
+  // ver backend/src/email.js. Sem essas variáveis definidas, o sistema não
+  // trava: só registra o e-mail no console em vez de enviar de verdade, o
+  // que é suficiente para testar os fluxos em desenvolvimento local.
+  smtp: {
+    host: process.env.SMTP_HOST || '',
+    port: int(process.env.SMTP_PORT, 465),
+    user: process.env.SMTP_USER || '',
+    pass: process.env.SMTP_PASS || '',
+    from: process.env.SMTP_FROM || process.env.SMTP_USER || '',
+  },
 };
 
 module.exports = { config };

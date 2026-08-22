@@ -61,4 +61,74 @@ function requireAuth(req) {
   return user;
 }
 
-module.exports = { login, logout, getUserFromToken, requireAuth };
+// --- Convite de acesso e "esqueci minha senha" ------------------------
+//
+// Mesmo padrão de segurança usado nas sessões: token aleatório de 32 bytes,
+// de uso único (used_at) e com expiração curta. O convite dura mais (a
+// pessoa pode demorar pra abrir o e-mail); a redefinição de senha dura
+// pouco, por ser mais sensível.
+
+const CONVITE_TTL_MS = 1000 * 60 * 60 * 24 * 3; // 3 dias
+const REDEFINICAO_TTL_MS = 1000 * 60 * 60; // 1 hora
+
+function criarToken(userId, tipo, ttlMs) {
+  const token = crypto.randomBytes(32).toString('hex');
+  const expiresAt = new Date(Date.now() + ttlMs).toISOString();
+  db.prepare('INSERT INTO auth_tokens (token, user_id, tipo, expires_at) VALUES (?, ?, ?, ?)').run(
+    token,
+    userId,
+    tipo,
+    expiresAt
+  );
+  return token;
+}
+
+function gerarTokenConvite(userId) {
+  return criarToken(userId, 'convite', CONVITE_TTL_MS);
+}
+
+// Retorna null tanto se o e-mail não existir quanto se o usuário estiver
+// desativado — de propósito, pra rota nunca revelar se um e-mail tem
+// cadastro ou não (a resposta HTTP é sempre a mesma, veja routes/auth.js).
+function gerarTokenRedefinicao(email) {
+  const user = db.prepare('SELECT * FROM users WHERE email = ? AND ativo = 1').get(email);
+  if (!user) return null;
+  return { token: criarToken(user.id, 'redefinicao', REDEFINICAO_TTL_MS), user };
+}
+
+function consultarToken(token) {
+  if (!token) return null;
+  const row = db.prepare('SELECT * FROM auth_tokens WHERE token = ?').get(token);
+  if (!row || row.used_at) return null;
+  if (new Date(row.expires_at).getTime() < Date.now()) return null;
+  const user = db.prepare('SELECT id, nome, email FROM users WHERE id = ?').get(row.user_id);
+  if (!user) return null;
+  return { tipo: row.tipo, user };
+}
+
+function definirSenhaComToken(token, novaSenha) {
+  const info = consultarToken(token);
+  if (!info) return false;
+  const { hash, salt } = hashPassword(novaSenha);
+  db.prepare('UPDATE users SET senha_hash = ?, senha_salt = ?, ativo = 1 WHERE id = ?').run(
+    hash,
+    salt,
+    info.user.id
+  );
+  db.prepare("UPDATE auth_tokens SET used_at = datetime('now') WHERE token = ?").run(token);
+  // Por segurança, derruba sessões antigas — se alguém mais tinha um token
+  // de sessão válido dessa conta, ele para de funcionar depois da troca.
+  db.prepare('DELETE FROM sessions WHERE user_id = ?').run(info.user.id);
+  return true;
+}
+
+module.exports = {
+  login,
+  logout,
+  getUserFromToken,
+  requireAuth,
+  gerarTokenConvite,
+  gerarTokenRedefinicao,
+  consultarToken,
+  definirSenhaComToken,
+};

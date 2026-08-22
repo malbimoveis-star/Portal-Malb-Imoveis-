@@ -274,10 +274,20 @@ const server = http.createServer(async (req, res) => {
       xml: (status, xml) => sendXml(res, status, xml),
     };
     try {
-      match.handler(req, wrappedRes, match.params, query, body, user, token);
+      // Algumas rotas (ex: criar usuário com convite por e-mail) precisam
+      // esperar uma operação assíncrona antes de responder — o handler pode
+      // retornar uma Promise nesses casos. As demais rotas continuam
+      // síncronas normalmente, sem precisar retornar nada.
+      const resultado = match.handler(req, wrappedRes, match.params, query, body, user, token);
+      if (resultado && typeof resultado.then === 'function') {
+        resultado.catch((err) => {
+          console.error('[erro na rota]', err);
+          if (!res.headersSent) sendJson(res, 500, { error: 'Erro interno do servidor' });
+        });
+      }
     } catch (err) {
       console.error('[erro na rota]', err);
-      sendJson(res, 500, { error: 'Erro interno do servidor' });
+      if (!res.headersSent) sendJson(res, 500, { error: 'Erro interno do servidor' });
     }
     return;
   }

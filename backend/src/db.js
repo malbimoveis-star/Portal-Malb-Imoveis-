@@ -113,6 +113,18 @@ db.exec(`
     texto TEXT NOT NULL,
     created_at TEXT NOT NULL DEFAULT (datetime('now'))
   );
+
+  -- Tokens de uso único para "convite de acesso" (novo usuário definir a
+  -- própria senha) e "esqueci minha senha". Curta duração, nunca reutilizados
+  -- (used_at marca quando foram consumidos) — ver backend/src/auth.js.
+  CREATE TABLE IF NOT EXISTS auth_tokens (
+    token TEXT PRIMARY KEY,
+    user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    tipo TEXT NOT NULL CHECK (tipo IN ('convite','redefinicao')),
+    created_at TEXT NOT NULL DEFAULT (datetime('now')),
+    expires_at TEXT NOT NULL,
+    used_at TEXT
+  );
 `);
 
 // Migração leve: adiciona colunas novas em bancos já existentes (criados antes

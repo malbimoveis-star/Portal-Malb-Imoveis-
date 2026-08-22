@@ -10,7 +10,17 @@
  * escondendo botões no painel).
  */
 
+const crypto = require('node:crypto');
 const { db, hashPassword } = require('../db');
+const authService = require('../auth');
+const emailService = require('../email');
+
+// Mesma lógica de backend/src/server.js (getBaseUrl) — usada aqui pra montar
+// o link de convite que vai dentro do e-mail do novo usuário.
+function getBaseUrl(req) {
+  const protocolo = req.headers['x-forwarded-proto'] === 'https' ? 'https' : 'http';
+  return `${protocolo}://${req.headers.host}`;
+}
 
 function rowToUsuario(row) {
   return {
@@ -38,14 +48,17 @@ function registerUsuariosRoutes(router) {
     res.json(200, { data: rows.map(rowToUsuario), total: rows.length });
   });
 
-  router.post('/api/usuarios', (req, res, params, query, body, user) => {
+  router.post('/api/usuarios', async (req, res, params, query, body, user) => {
     if (!user) return res.json(401, { error: 'Autenticação necessária' });
     if (user.papel !== 'admin') return res.json(403, { error: 'Só administradores podem cadastrar novos usuários' });
 
-    if (!body.nome || !body.email || !body.senha) {
-      return res.json(400, { error: 'Payload inválido', detalhes: ['nome, email e senha são obrigatórios'] });
+    if (!body.nome || !body.email) {
+      return res.json(400, { error: 'Payload inválido', detalhes: ['nome e email são obrigatórios'] });
     }
-    if (String(body.senha).length < 6) {
+    // Senha agora é opcional: se o admin não definir uma, mandamos um
+    // convite por e-mail pra a própria pessoa escolher a senha dela (mais
+    // seguro — a senha nunca fica registrada numa caixa de entrada).
+    if (body.senha && String(body.senha).length < 6) {
       return res.json(400, { error: 'Payload inválido', detalhes: ['senha deve ter pelo menos 6 caracteres'] });
     }
     const papel = body.papel === 'admin' ? 'admin' : 'corretor';
@@ -53,14 +66,30 @@ function registerUsuariosRoutes(router) {
     const existente = db.prepare('SELECT id FROM users WHERE email = ?').get(body.email);
     if (existente) return res.json(409, { error: 'Já existe um usuário com esse e-mail' });
 
-    const { hash, salt } = hashPassword(body.senha);
+    // Sem senha definida pelo admin: gera um hash a partir de bytes
+    // aleatórios, impossível de adivinhar ou de ter sido escolhido por
+    // alguém — a conta só fica utilizável depois que a pessoa define a
+    // própria senha pelo link de convite.
+    const { hash, salt } = hashPassword(body.senha || crypto.randomBytes(32).toString('hex'));
     const info = db.prepare(`
       INSERT INTO users (nome, email, creci, senha_hash, senha_salt, papel)
       VALUES (?, ?, ?, ?, ?, ?)
     `).run(body.nome, body.email, body.creci || null, hash, salt, papel);
 
     const row = db.prepare('SELECT * FROM users WHERE id = ?').get(info.lastInsertRowid);
-    res.json(201, { data: rowToUsuario(row) });
+
+    let convite = null;
+    if (!body.senha) {
+      const conviteToken = authService.gerarTokenConvite(info.lastInsertRowid);
+      const link = `${getBaseUrl(req)}/admin/definir-senha.html?token=${conviteToken}`;
+      const { enviado } = await emailService.enviarConvite({ to: row.email, nome: row.nome, link });
+      // O link também volta na resposta (só o admin autenticado que criou o
+      // usuário vê isso) — assim dá pra copiar e mandar manualmente se o
+      // envio automático falhar ou o e-mail ainda não estiver configurado.
+      convite = { link, enviado };
+    }
+
+    res.json(201, { data: rowToUsuario(row), convite });
   });
 
   router.put('/api/usuarios/:id', (req, res, params, query, body, user) => {

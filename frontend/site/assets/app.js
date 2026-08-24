@@ -121,6 +121,37 @@ function clearToken() {
   try { localStorage.removeItem('malb_admin_token'); } catch {}
 }
 
+/* Fase 7 — login separado pros anunciantes (corretor autônomo ou imobiliária
+   que se cadastra pra anunciar no portal). Guardado numa chave diferente do
+   token do painel interno (malb_admin_token) — são duas contas/dois logins
+   completamente separados, uma pessoa pode até estar logada nos dois ao
+   mesmo tempo sem conflito. */
+function getContaToken() {
+  try { return localStorage.getItem('malb_conta_token'); } catch { return null; }
+}
+function setContaToken(token) {
+  try { localStorage.setItem('malb_conta_token', token); } catch {}
+}
+function clearContaToken() {
+  try { localStorage.removeItem('malb_conta_token'); } catch {}
+}
+async function apiConta(path, { method = 'GET', body } = {}) {
+  const headers = {};
+  if (body) headers['Content-Type'] = 'application/json';
+  const token = getContaToken();
+  if (token) headers['Authorization'] = `Bearer ${token}`;
+  const res = await fetch(API_BASE + path, { method, headers, body: body ? JSON.stringify(body) : undefined });
+  if (res.status === 204) return null;
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    const err = new Error(data.error || `Erro ${res.status}`);
+    err.status = res.status;
+    err.detalhes = data.detalhes;
+    throw err;
+  }
+  return data;
+}
+
 /* Botão de mostrar/ocultar senha — usado no login e no cadastro de corretor
    (aba Equipe). Basta envolver o <input type="password"> numa <div
    class="campo-senha"> com um <button data-toggle-senha="id-do-input">
@@ -266,6 +297,7 @@ function topbarHTML(active, base = '') {
       ${link('busca.html?finalidade=aluguel', 'Alugar', 'alugar')}
       ${link('favoritos.html', 'Favoritos', 'favoritos')}
       <div class="topbar-spacer"></div>
+      <a href="${base}planos.html" class="btn btn-ghost">Anunciar imóveis</a>
       <a href="${base}admin/index.html" class="btn btn-ghost">Painel do corretor</a>
     </div>
   </header>`;

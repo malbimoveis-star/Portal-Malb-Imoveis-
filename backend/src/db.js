@@ -199,6 +199,11 @@ garantirColuna('imoveis', 'lng', 'REAL');
 garantirColuna('imoveis', 'origem', "TEXT NOT NULL DEFAULT 'proprio'");
 garantirColuna('imoveis', 'parceiro_id', 'INTEGER REFERENCES parceiros(id) ON DELETE SET NULL');
 garantirColuna('imoveis', 'referencia_externa', 'TEXT');
+// Fase 7.1 — vínculo entre um imóvel e a conta de anunciante (corretor ou
+// imobiliária) dona dele, pro anunciante ver só os próprios imóveis no
+// painel dele e o admin ver de quem é cada um. NULL continua significando
+// "imóvel próprio da Malb" — nada muda pros imóveis que já existem hoje.
+garantirColuna('imoveis', 'conta_id', 'INTEGER REFERENCES contas(id) ON DELETE SET NULL');
 
 // Fase 5 — CRM interno: papel/ativo em users (para distinguir admin de
 // corretor e permitir desativar acesso sem apagar histórico), e atribuição

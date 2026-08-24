@@ -19,6 +19,7 @@
 
 const crypto = require('node:crypto');
 const { db, hashPassword } = require('../db');
+const { rowToImovel } = require('./imoveis');
 
 const SESSION_TTL_MS = 1000 * 60 * 60 * 24 * 7; // 7 dias, igual ao login do painel interno
 
@@ -152,6 +153,37 @@ function registerContasRoutes(router) {
     res.json(200, { data: { ...rowToConta(conta), plano: plano ? rowToPlano(plano) : null } });
   });
 
+  // Fase 7.1 — painel do anunciante: os próprios imóveis da conta logada.
+  router.get('/api/contas/me/imoveis', (req, res, params, query, body, user, token) => {
+    const conta = getContaFromToken(token);
+    if (!conta) return res.json(401, { error: 'Autenticação necessária' });
+    const rows = db.prepare('SELECT * FROM imoveis WHERE conta_id = ? ORDER BY created_at DESC').all(conta.id);
+    res.json(200, { data: rows.map(rowToImovel), total: rows.length });
+  });
+
+  // Estatísticas básicas do anunciante: quantos imóveis tem (e em que
+  // status) e quantos leads os imóveis dele já receberam. Não tem contagem
+  // de visualizações/origem de tráfego ainda — isso fica pra uma etapa
+  // seguinte (precisa de um sistema de rastreamento que ainda não existe).
+  router.get('/api/contas/me/stats', (req, res, params, query, body, user, token) => {
+    const conta = getContaFromToken(token);
+    if (!conta) return res.json(401, { error: 'Autenticação necessária' });
+
+    const { total: totalImoveis } = db.prepare('SELECT COUNT(*) AS total FROM imoveis WHERE conta_id = ?').get(conta.id);
+    const { total: imoveisDisponiveis } = db.prepare("SELECT COUNT(*) AS total FROM imoveis WHERE conta_id = ? AND status = 'disponivel'").get(conta.id);
+    const { total: totalLeads } = db.prepare(`
+      SELECT COUNT(*) AS total FROM leads l JOIN imoveis i ON i.id = l.imovel_id WHERE i.conta_id = ?
+    `).get(conta.id);
+    const porStatusRows = db.prepare(`
+      SELECT l.status AS status, COUNT(*) AS total FROM leads l JOIN imoveis i ON i.id = l.imovel_id
+      WHERE i.conta_id = ? GROUP BY l.status
+    `).all(conta.id);
+    const leadsPorStatus = { novo: 0, em_atendimento: 0, convertido: 0, perdido: 0 };
+    porStatusRows.forEach((r) => { leadsPorStatus[r.status] = r.total; });
+
+    res.json(200, { data: { totalImoveis, imoveisDisponiveis, totalLeads, leadsPorStatus } });
+  });
+
   // Checkout SIMULADO — ver comentário no topo do arquivo. Ativa a
   // assinatura na hora, sem cobrar nada de verdade.
   router.post('/api/checkout', (req, res, params, query, body, user, token) => {
@@ -183,6 +215,29 @@ function registerContasRoutes(router) {
       },
       aviso: 'Checkout simulado — nenhuma cobrança real foi feita ainda. A integração de pagamento de verdade fica para uma próxima etapa.',
     });
+  });
+
+  // Fase 7.1 — visibilidade das contas de anunciante dentro do CRM interno.
+  // Protegida pelo login do painel (/admin), não pelo login de conta — é
+  // assim que a equipe da Malb acompanha quem assinou o quê.
+  router.get('/api/contas', (req, res, params, query, body, user) => {
+    if (!user) return res.json(401, { error: 'Autenticação necessária' });
+    const rows = db.prepare(`
+      SELECT c.*, p.nome AS plano_nome, p.preco_mensal AS plano_preco,
+        (SELECT COUNT(*) FROM imoveis i WHERE i.conta_id = c.id) AS total_imoveis,
+        (SELECT COUNT(*) FROM leads l JOIN imoveis i ON i.id = l.imovel_id WHERE i.conta_id = c.id) AS total_leads
+      FROM contas c
+      LEFT JOIN planos p ON p.id = c.plano_id
+      ORDER BY c.created_at DESC
+    `).all();
+    const data = rows.map((row) => ({
+      ...rowToConta(row),
+      planoNome: row.plano_nome || null,
+      planoPreco: row.plano_preco != null ? row.plano_preco : null,
+      totalImoveis: row.total_imoveis,
+      totalLeads: row.total_leads,
+    }));
+    res.json(200, { data, total: data.length });
   });
 }
 

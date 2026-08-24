@@ -25,6 +25,7 @@ function rowToImovel(row) {
     origem: row.origem || 'proprio',
     parceiroId: row.parceiro_id,
     referenciaExterna: row.referencia_externa,
+    contaId: row.conta_id,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   };
@@ -98,16 +99,27 @@ function registerImoveisRoutes(router) {
     const erros = validarPayload(body);
     if (erros.length) return res.json(400, { error: 'Payload inválido', detalhes: erros });
 
+    // contaId (opcional) liga o imóvel a uma conta de anunciante (corretor ou
+    // imobiliária) — só quem tem login no painel interno pode definir isso
+    // (o próprio anunciante ainda não cadastra imóveis direto, Fase 7.1).
+    let contaId = null;
+    if (body.contaId != null && body.contaId !== '') {
+      const conta = db.prepare('SELECT id FROM contas WHERE id = ?').get(Number(body.contaId));
+      if (!conta) return res.json(400, { error: 'Payload inválido', detalhes: ['contaId não corresponde a uma conta existente'] });
+      contaId = conta.id;
+    }
+
     const info = db.prepare(`
-      INSERT INTO imoveis (tipo, finalidade, preco, titulo, bairro, cidade, quartos, banheiros, vagas, area, descricao, amenities, foto, lat, lng, status)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      INSERT INTO imoveis (tipo, finalidade, preco, titulo, bairro, cidade, quartos, banheiros, vagas, area, descricao, amenities, foto, lat, lng, status, conta_id)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `).run(
       body.tipo, body.finalidade, Number(body.preco), body.titulo, body.bairro, body.cidade,
       Number(body.quartos || 0), Number(body.banheiros || 0), Number(body.vagas || 0), Number(body.area || 0),
       body.descricao || '', JSON.stringify(body.amenities || []), body.foto || '',
       body.lat != null && body.lat !== '' ? Number(body.lat) : null,
       body.lng != null && body.lng !== '' ? Number(body.lng) : null,
-      body.status || 'disponivel'
+      body.status || 'disponivel',
+      contaId
     );
     const row = db.prepare('SELECT * FROM imoveis WHERE id = ?').get(info.lastInsertRowid);
     res.json(201, { data: rowToImovel(row) });
@@ -122,8 +134,21 @@ function registerImoveisRoutes(router) {
     const erros = validarPayload(merged);
     if (erros.length) return res.json(400, { error: 'Payload inválido', detalhes: erros });
 
+    // contaId pode vir como null explicitamente (desvincular do anunciante);
+    // undefined (campo ausente no body) significa "não mexe nesse campo".
+    let contaId = existing.conta_id;
+    if (body.contaId !== undefined) {
+      if (body.contaId === null || body.contaId === '') {
+        contaId = null;
+      } else {
+        const conta = db.prepare('SELECT id FROM contas WHERE id = ?').get(Number(body.contaId));
+        if (!conta) return res.json(400, { error: 'Payload inválido', detalhes: ['contaId não corresponde a uma conta existente'] });
+        contaId = conta.id;
+      }
+    }
+
     db.prepare(`
-      UPDATE imoveis SET tipo=?, finalidade=?, preco=?, titulo=?, bairro=?, cidade=?, quartos=?, banheiros=?, vagas=?, area=?, descricao=?, amenities=?, foto=?, lat=?, lng=?, status=?, updated_at=datetime('now')
+      UPDATE imoveis SET tipo=?, finalidade=?, preco=?, titulo=?, bairro=?, cidade=?, quartos=?, banheiros=?, vagas=?, area=?, descricao=?, amenities=?, foto=?, lat=?, lng=?, status=?, conta_id=?, updated_at=datetime('now')
       WHERE id = ?
     `).run(
       merged.tipo, merged.finalidade, Number(merged.preco), merged.titulo, merged.bairro, merged.cidade,
@@ -131,7 +156,7 @@ function registerImoveisRoutes(router) {
       merged.descricao || '', JSON.stringify(merged.amenities || []), merged.foto || '',
       merged.lat != null && merged.lat !== '' ? Number(merged.lat) : null,
       merged.lng != null && merged.lng !== '' ? Number(merged.lng) : null,
-      merged.status || 'disponivel', Number(params.id)
+      merged.status || 'disponivel', contaId, Number(params.id)
     );
     const row = db.prepare('SELECT * FROM imoveis WHERE id = ?').get(Number(params.id));
 

@@ -39,7 +39,7 @@ document.getElementById('topbar').innerHTML = topbarHTML('', '');
 ligarTogglesSenha();
 
 const params = new URLSearchParams(window.location.search);
-const redirect = params.get('redirect') || 'planos.html';
+const redirect = params.get('redirect') || 'painel-anunciante.html';
 
 if (getContaToken()) window.location.href = redirect;
 

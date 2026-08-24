@@ -152,6 +152,29 @@ async function apiConta(path, { method = 'GET', body } = {}) {
   return data;
 }
 
+/* Estado de "carregando" num botão de formulário — usado em todo formulário
+   que chama a API (login, cadastro, checkout). No plano gratuito do Render
+   o servidor "dorme" depois de um tempo sem uso, então a primeira
+   requisição do dia pode demorar bem mais que o normal (até ~1 minuto) pra
+   responder; sem um aviso, essa demora parece a página ter travado. Uso:
+     const parar = iniciarCarregando(btn, 'Entrando…', 'hint-acordando');
+     try { ...chamada à api()... } finally { parar(); }
+   `hintId` é opcional: o id de um <p> escondido por padrão que aparece
+   depois de alguns segundos se a chamada ainda não voltou. */
+function iniciarCarregando(btn, textoCarregando, hintId) {
+  const textoOriginal = btn.textContent;
+  btn.disabled = true;
+  btn.textContent = textoCarregando;
+  const hintEl = hintId ? document.getElementById(hintId) : null;
+  const timer = hintEl ? setTimeout(() => { hintEl.style.display = 'block'; }, 4000) : null;
+  return function pararCarregando() {
+    btn.disabled = false;
+    btn.textContent = textoOriginal;
+    if (timer) clearTimeout(timer);
+    if (hintEl) hintEl.style.display = 'none';
+  };
+}
+
 /* Botão de mostrar/ocultar senha — usado no login e no cadastro de corretor
    (aba Equipe). Basta envolver o <input type="password"> numa <div
    class="campo-senha"> com um <button data-toggle-senha="id-do-input">

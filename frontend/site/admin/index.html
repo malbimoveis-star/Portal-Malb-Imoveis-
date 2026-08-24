@@ -25,6 +25,7 @@
     <button class="chip" data-tab="leads">Leads</button>
     <button class="chip" data-tab="equipe">Equipe</button>
     <button class="chip" data-tab="parceiros">Parceiros (CRMs)</button>
+    <button class="chip" data-tab="contas">Anunciantes</button>
   </div>
 
   <section id="tab-imoveis">
@@ -35,9 +36,9 @@
     <div class="table-wrap">
       <table>
         <thead><tr>
-          <th>Foto</th><th>Título</th><th>Tipo</th><th>Finalidade</th><th>Preço</th><th>Origem</th><th>Status</th><th>Ações</th>
+          <th>Foto</th><th>Título</th><th>Tipo</th><th>Finalidade</th><th>Preço</th><th>Origem</th><th>Anunciante</th><th>Status</th><th>Ações</th>
         </tr></thead>
-        <tbody id="tbody-imoveis"><tr><td colspan="8">Carregando…</td></tr></tbody>
+        <tbody id="tbody-imoveis"><tr><td colspan="9">Carregando…</td></tr></tbody>
       </table>
     </div>
   </section>
@@ -89,6 +90,25 @@
           <th>Nome</th><th>Chave (prefixo)</th><th>Webhook</th><th>Imóveis importados</th><th>Status</th><th>Ações</th>
         </tr></thead>
         <tbody id="tbody-parceiros"><tr><td colspan="6">Carregando…</td></tr></tbody>
+      </table>
+    </div>
+  </section>
+
+  <section id="tab-contas" style="display:none;">
+    <p style="color:var(--ink-faint);font-size:.85rem;margin:0 0 1rem;max-width:65ch;">
+      Contas de corretores e imobiliárias que se cadastraram no marketplace do portal (planos, assinaturas e o painel
+      próprio deles) — separado da Equipe acima, que é quem tem login aqui no CRM interno. Pra vincular imóveis a uma
+      dessas contas, edite o imóvel na aba "Imóveis" e escolha o anunciante.
+    </p>
+    <div class="admin-topbar">
+      <span class="count" id="contagem-contas"></span>
+    </div>
+    <div class="table-wrap">
+      <table>
+        <thead><tr>
+          <th>Tipo</th><th>Nome</th><th>E-mail</th><th>CRECI</th><th>Plano</th><th>Assinatura</th><th>Imóveis</th><th>Leads</th>
+        </tr></thead>
+        <tbody id="tbody-contas"><tr><td colspan="8">Carregando…</td></tr></tbody>
       </table>
     </div>
   </section>
@@ -166,6 +186,12 @@
         <div class="field span2">
           <label>URL da foto (opcional — deixe em branco para manter a atual)</label>
           <input type="text" id="f-foto" placeholder="https://... ou data:image/...">
+        </div>
+        <div class="field span2">
+          <label>Anunciante (opcional)</label>
+          <select id="f-conta-id">
+            <option value="">Imóvel próprio da Malb (sem anunciante)</option>
+          </select>
         </div>
         <div class="field">
           <label>Latitude (opcional, para o mapa)</label>
@@ -335,6 +361,7 @@ if (!getToken()) window.location.href = 'login.html';
 
 let imoveisCache = [];
 let usuariosCache = [];
+let contasCache = [];
 let meId = null;
 let mePapel = null;
 
@@ -355,6 +382,10 @@ async function init() {
   // funil de leads precisa dos nomes dos corretores pra montar os cards.
   await carregarEquipe();
   carregarLeads();
+  // As contas de anunciante também são carregadas já no início — o select
+  // "Anunciante" do modal de imóvel precisa delas prontas antes de o
+  // usuário abrir "+ Novo imóvel", não só quando a aba Anunciantes abre.
+  carregarContas();
 }
 
 document.getElementById('btn-logout').addEventListener('click', async () => {
@@ -372,9 +403,11 @@ document.querySelectorAll('[data-tab]').forEach(btn => {
     document.getElementById('tab-leads').style.display = tab === 'leads' ? '' : 'none';
     document.getElementById('tab-equipe').style.display = tab === 'equipe' ? '' : 'none';
     document.getElementById('tab-parceiros').style.display = tab === 'parceiros' ? '' : 'none';
+    document.getElementById('tab-contas').style.display = tab === 'contas' ? '' : 'none';
     if (tab === 'parceiros') carregarParceiros();
     if (tab === 'equipe') carregarEquipe();
     if (tab === 'leads') carregarLeads();
+    if (tab === 'contas') carregarContas();
   });
 });
 
@@ -391,6 +424,7 @@ async function carregarImoveis() {
         <td>${im.finalidade === 'venda' ? 'Venda' : 'Aluguel'}</td>
         <td class="price">${fmtPreco(im.preco, im.finalidade)}</td>
         <td>${im.origem === 'parceiro' ? '<span class="origem-pill">via parceiro</span>' : '<span style="color:var(--ink-faint);font-size:.8rem;">própria</span>'}</td>
+        <td>${im.contaId ? (contasCache.find(c => c.id === im.contaId)?.nome || 'Conta #' + im.contaId) : '<span style="color:var(--ink-faint);font-size:.8rem;">—</span>'}</td>
         <td><span class="status-pill ${im.status}">${im.status}</span></td>
         <td style="display:flex;gap:.4rem;">
           <button class="btn btn-ghost" data-editar="${im.id}">Editar</button>
@@ -401,7 +435,7 @@ async function carregarImoveis() {
     document.querySelectorAll('[data-editar]').forEach(b => b.addEventListener('click', () => abrirModal(Number(b.dataset.editar))));
     document.querySelectorAll('[data-excluir]').forEach(b => b.addEventListener('click', () => excluirImovel(Number(b.dataset.excluir))));
   } catch (err) {
-    document.getElementById('tbody-imoveis').innerHTML = `<tr><td colspan="8" style="color:var(--danger);">Erro ao carregar: ${err.message}</td></tr>`;
+    document.getElementById('tbody-imoveis').innerHTML = `<tr><td colspan="9" style="color:var(--danger);">Erro ao carregar: ${err.message}</td></tr>`;
   }
 }
 
@@ -687,6 +721,7 @@ function abrirModal(id) {
   const form = document.getElementById('form-imovel');
   form.reset();
   document.getElementById('f-id').value = '';
+  preencherSelectContas();
   document.getElementById('modal-titulo').textContent = id ? 'Editar imóvel' : 'Novo imóvel';
   if (id) {
     const im = imoveisCache.find(i => i.id === id);
@@ -707,6 +742,7 @@ function abrirModal(id) {
       document.getElementById('f-amenities').value = (im.amenities || []).join(', ');
       document.getElementById('f-lat').value = im.lat != null ? im.lat : '';
       document.getElementById('f-lng').value = im.lng != null ? im.lng : '';
+      document.getElementById('f-conta-id').value = im.contaId != null ? im.contaId : '';
     }
   }
   document.getElementById('modal-backdrop').classList.add('show');
@@ -741,6 +777,8 @@ document.getElementById('form-imovel').addEventListener('submit', async (e) => {
   const lngVal = document.getElementById('f-lng').value.trim();
   payload.lat = latVal ? Number(latVal) : null;
   payload.lng = lngVal ? Number(lngVal) : null;
+  const contaIdVal = document.getElementById('f-conta-id').value;
+  payload.contaId = contaIdVal ? Number(contaIdVal) : null;
 
   const btn = document.getElementById('btn-salvar');
   btn.disabled = true; btn.textContent = 'Salvando…';
@@ -770,6 +808,49 @@ async function excluirImovel(id) {
   } catch (err) {
     showToast('Erro ao excluir: ' + err.message);
   }
+}
+
+// ---------------------------------------------------------------------
+// Anunciantes (Fase 7.1 — contas de corretor/imobiliária do marketplace)
+// ---------------------------------------------------------------------
+
+const TIPO_CONTA_LABEL = { corretor: 'Corretor(a)', imobiliaria: 'Imobiliária' };
+const STATUS_ASSINATURA_LABEL = { pendente: 'sem plano', ativa: 'ativa', cancelada: 'cancelada', inadimplente: 'inadimplente' };
+const STATUS_ASSINATURA_PILL = { pendente: 'perdido', ativa: 'disponivel', cancelada: 'vendido', inadimplente: 'novo' };
+
+async function carregarContas() {
+  try {
+    const resp = await api('/contas', { auth: true });
+    contasCache = resp.data;
+    preencherSelectContas();
+    const tbody = document.getElementById('tbody-contas');
+    if (!tbody) return; // aba ainda não renderizou na primeira chamada do init()
+    document.getElementById('contagem-contas').textContent = `${resp.total} conta${resp.total === 1 ? '' : 's'}`;
+    tbody.innerHTML = resp.data.length ? resp.data.map(c => `
+      <tr>
+        <td>${TIPO_CONTA_LABEL[c.tipo]}</td>
+        <td>${c.nome}${c.nomeFantasia ? ` <span style="color:var(--ink-faint);font-size:.78rem;">(${c.nomeFantasia})</span>` : ''}</td>
+        <td>${c.email}</td>
+        <td>${c.creci || '—'}</td>
+        <td>${c.planoNome || '—'}</td>
+        <td><span class="status-pill ${STATUS_ASSINATURA_PILL[c.statusAssinatura] || ''}">${STATUS_ASSINATURA_LABEL[c.statusAssinatura] || c.statusAssinatura}</span></td>
+        <td>${c.totalImoveis}</td>
+        <td>${c.totalLeads}</td>
+      </tr>
+    `).join('') : '<tr><td colspan="8" style="color:var(--ink-faint);">Nenhuma conta de anunciante cadastrada ainda.</td></tr>';
+  } catch (err) {
+    const tbody = document.getElementById('tbody-contas');
+    if (tbody) tbody.innerHTML = `<tr><td colspan="8" style="color:var(--danger);">Erro ao carregar: ${err.message}</td></tr>`;
+  }
+}
+
+function preencherSelectContas() {
+  const select = document.getElementById('f-conta-id');
+  if (!select) return;
+  const valorAtual = select.value;
+  const opcoes = contasCache.filter(c => c.ativo).map(c => `<option value="${c.id}">${TIPO_CONTA_LABEL[c.tipo]} · ${c.nome}</option>`).join('');
+  select.innerHTML = `<option value="">Imóvel próprio da Malb (sem anunciante)</option>${opcoes}`;
+  select.value = valorAtual;
 }
 
 // ---------------------------------------------------------------------

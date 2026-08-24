@@ -1,0 +1,128 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Checkout — Portal Malb Imóveis</title>
+<link rel="stylesheet" href="assets/app.css">
+</head>
+<body>
+<div id="topbar"></div>
+
+<main>
+  <div class="checkout-shell" id="checkout-shell">
+    <p style="text-align:center;color:var(--ink-faint);">Carregando…</p>
+  </div>
+</main>
+
+<script src="assets/app.js"></script>
+<script>
+const shell = document.getElementById('checkout-shell');
+const params = new URLSearchParams(window.location.search);
+const planoId = params.get('plano');
+
+document.getElementById('topbar').innerHTML = topbarHTML('', '');
+
+function telaErro(msg, comLink) {
+  shell.innerHTML = `
+    <h1>Não foi possível continuar</h1>
+    <div class="error-msg show">${msg}</div>
+    ${comLink ? '<p class="hint"><a href="planos.html">Voltar para os planos</a>.</p>' : ''}
+  `;
+}
+
+async function iniciar() {
+  if (!planoId) {
+    telaErro('Nenhum plano foi selecionado.', true);
+    return;
+  }
+  if (!getContaToken()) {
+    window.location.href = `conta-login.html?redirect=${encodeURIComponent('checkout.html?plano=' + planoId)}`;
+    return;
+  }
+
+  let conta;
+  try {
+    const respMe = await apiConta('/contas/me');
+    conta = respMe.data;
+  } catch (err) {
+    clearContaToken();
+    window.location.href = `conta-login.html?redirect=${encodeURIComponent('checkout.html?plano=' + planoId)}`;
+    return;
+  }
+
+  let plano;
+  try {
+    const respPlanos = await api(`/planos?tipo=${conta.tipo}`);
+    plano = respPlanos.data.find((p) => String(p.id) === String(planoId));
+  } catch (err) {
+    telaErro('Erro ao carregar o plano: ' + err.message, true);
+    return;
+  }
+
+  if (!plano) {
+    telaErro('Esse plano não existe ou não está mais disponível.', true);
+    return;
+  }
+
+  renderResumo(conta, plano);
+}
+
+function fmtPreco(preco) {
+  if (preco === 0) return 'Grátis';
+  return 'R$ ' + preco.toLocaleString('pt-BR', { minimumFractionDigits: 2 });
+}
+
+function renderResumo(conta, plano) {
+  shell.innerHTML = `
+    <h1>Confirmar assinatura</h1>
+    <p class="sub">Revise os dados antes de confirmar. Você pode trocar de plano depois, quando quiser.</p>
+    <div class="checkout-resumo">
+      <div class="linha"><span>Conta</span><span>${conta.nome}</span></div>
+      <div class="linha"><span>Plano</span><span>${plano.nome}</span></div>
+      <div class="linha total"><span>Total</span><span>${fmtPreco(plano.precoMensal)}${plano.precoMensal > 0 ? '/mês' : ''}</span></div>
+    </div>
+    <div class="checkout-aviso">
+      Checkout simulado: nenhuma cobrança real será feita agora. A cobrança de verdade entra em uma próxima etapa do projeto.
+    </div>
+    <div class="error-msg" id="erro-checkout" style="margin-top:1rem;"></div>
+    <button type="button" class="btn btn-primary" id="btn-confirmar" style="width:100%;justify-content:center;margin-top:1.2rem;">
+      Confirmar assinatura
+    </button>
+    <p class="hint" style="text-align:center;"><a href="planos.html">Escolher outro plano</a></p>
+  `;
+
+  document.getElementById('btn-confirmar').addEventListener('click', async () => {
+    const btn = document.getElementById('btn-confirmar');
+    const erroEl = document.getElementById('erro-checkout');
+    erroEl.classList.remove('show');
+    btn.disabled = true;
+    btn.textContent = 'Confirmando…';
+    try {
+      const resp = await apiConta('/checkout', { method: 'POST', body: { planoId: Number(plano.id) } });
+      renderSucesso(resp.data, resp.aviso);
+    } catch (err) {
+      erroEl.textContent = err.detalhes ? err.detalhes.join(' ') : 'Erro: ' + err.message;
+      erroEl.classList.add('show');
+      btn.disabled = false;
+      btn.textContent = 'Confirmar assinatura';
+    }
+  });
+}
+
+function renderSucesso(assinatura, aviso) {
+  shell.innerHTML = `
+    <div class="checkout-sucesso">
+      <div class="icone-ok">✓</div>
+      <h1>Assinatura ativada!</h1>
+      <p class="sub">Seu plano <strong>${assinatura.plano.nome}</strong> já está ativo.</p>
+      <div class="checkout-aviso">${aviso}</div>
+      <a href="index.html" class="btn btn-primary" style="width:100%;justify-content:center;margin-top:1.4rem;">Ir para o portal</a>
+    </div>
+  `;
+}
+
+iniciar();
+</script>
+</body>
+</html>

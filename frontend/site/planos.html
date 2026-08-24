@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Planos para anunciar — Portal Malb Imóveis</title>
+<link rel="stylesheet" href="assets/app.css">
+</head>
+<body>
+<div id="topbar"></div>
+
+<main>
+  <div class="planos-hero">
+    <h1>Anuncie seus imóveis no Portal Malb</h1>
+    <p>Escolha o plano certo pra você e comece a receber contatos de quem está procurando imóvel.</p>
+  </div>
+
+  <div class="tipo-toggle">
+    <button type="button" id="btn-tipo-corretor" data-tipo="corretor">Sou corretor(a)</button>
+    <button type="button" id="btn-tipo-imobiliaria" data-tipo="imobiliaria">Sou imobiliária</button>
+  </div>
+
+  <div id="erro" class="error-msg" style="max-width:640px;margin:0 auto 1.5rem;"></div>
+  <div class="plans-grid" id="plans-grid">
+    <p style="grid-column:1/-1;text-align:center;color:var(--ink-faint);">Carregando planos…</p>
+  </div>
+</main>
+
+<script src="assets/app.js"></script>
+<script>
+document.getElementById('topbar').innerHTML = topbarHTML('', '');
+
+const params = new URLSearchParams(window.location.search);
+let tipoAtual = params.get('tipo') === 'imobiliaria' ? 'imobiliaria' : 'corretor';
+
+function fmtPrecoPlano(preco) {
+  if (preco === 0) return 'Grátis';
+  return 'R$ ' + preco.toLocaleString('pt-BR', { minimumFractionDigits: 2 });
+}
+
+function planoCardHTML(p) {
+  const precoTexto = p.precoMensal === 0 && p.nome === 'Enterprise'
+    ? 'Sob consulta'
+    : `${fmtPrecoPlano(p.precoMensal)}${p.precoMensal > 0 ? '<span class="per">/mês</span>' : ''}`;
+  return `
+  <div class="plan-card ${p.destaque ? 'destaque' : ''}">
+    ${p.destaque ? '<span class="plan-selo">Mais popular</span>' : ''}
+    <h3>${p.nome}</h3>
+    <div class="plan-preco">${precoTexto}</div>
+    <p class="plan-desc">${p.descricao}</p>
+    <ul>${p.recursos.map(r => `<li>${r}</li>`).join('')}</ul>
+    <button type="button" class="btn btn-primary" style="width:100%;justify-content:center;" data-plano-id="${p.id}" data-plano-preco="${p.precoMensal}">
+      ${p.precoMensal === 0 && p.nome === 'Enterprise' ? 'Falar com a gente' : (p.precoMensal === 0 ? 'Começar grátis' : 'Assinar plano')}
+    </button>
+  </div>`;
+}
+
+async function carregarPlanos(tipo) {
+  tipoAtual = tipo;
+  document.getElementById('btn-tipo-corretor').classList.toggle('ativo', tipo === 'corretor');
+  document.getElementById('btn-tipo-imobiliaria').classList.toggle('ativo', tipo === 'imobiliaria');
+  document.getElementById('erro').classList.remove('show');
+
+  const grid = document.getElementById('plans-grid');
+  grid.innerHTML = '<p style="grid-column:1/-1;text-align:center;color:var(--ink-faint);">Carregando planos…</p>';
+  try {
+    const resp = await api(`/planos?tipo=${tipo}`);
+    grid.innerHTML = resp.data.map(planoCardHTML).join('');
+    grid.querySelectorAll('[data-plano-id]').forEach((btn) => {
+      btn.addEventListener('click', () => escolherPlano(btn.dataset.planoId, Number(btn.dataset.planoPreco)));
+    });
+  } catch (err) {
+    grid.innerHTML = '';
+    const erroEl = document.getElementById('erro');
+    erroEl.textContent = 'Não foi possível carregar os planos: ' + err.message;
+    erroEl.classList.add('show');
+  }
+}
+
+function escolherPlano(planoId, preco) {
+  // Enterprise (sob consulta) não passa pelo checkout — direciona pro
+  // e-mail/telefone de contato em vez de simular uma cobrança que não existe.
+  if (preco === 0 && tipoAtual === 'imobiliaria') {
+    const btn = event.target;
+    if (btn.textContent.trim() === 'Falar com a gente') {
+      window.location.href = 'mailto:malbimoveis@gmail.com?subject=' + encodeURIComponent('Interesse no plano Enterprise');
+      return;
+    }
+  }
+  if (!getContaToken()) {
+    // Ainda não tem conta — manda pro cadastro certo, e volta pra cá depois.
+    window.location.href = (tipoAtual === 'imobiliaria' ? 'cadastro-imobiliaria.html' : 'cadastro-corretor.html');
+    return;
+  }
+  window.location.href = `checkout.html?plano=${planoId}`;
+}
+
+document.getElementById('btn-tipo-corretor').addEventListener('click', () => carregarPlanos('corretor'));
+document.getElementById('btn-tipo-imobiliaria').addEventListener('click', () => carregarPlanos('imobiliaria'));
+
+carregarPlanos(tipoAtual);
+</script>
+</body>
+</html>

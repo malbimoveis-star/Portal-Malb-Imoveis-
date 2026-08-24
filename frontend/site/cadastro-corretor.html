@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Anunciar como corretor(a) — Portal Malb Imóveis</title>
+<link rel="stylesheet" href="assets/app.css">
+</head>
+<body>
+<div id="topbar"></div>
+
+<main>
+  <div class="login-shell" style="max-width:460px;">
+    <h1>Anunciar como corretor(a)</h1>
+    <p class="sub">Crie sua conta gratuita e comece a divulgar seus imóveis no portal.</p>
+    <div class="error-msg" id="erro"></div>
+    <form class="form-stack" id="form-cadastro">
+      <div class="field">
+        <label for="nome">Nome completo</label>
+        <input type="text" id="nome" required autocomplete="name">
+      </div>
+      <div class="field-grid">
+        <div class="field">
+          <label for="email">E-mail</label>
+          <input type="email" id="email" required autocomplete="username">
+        </div>
+        <div class="field">
+          <label for="telefone">Telefone / WhatsApp</label>
+          <input type="tel" id="telefone" placeholder="(11) 90000-0000">
+        </div>
+      </div>
+      <div class="field">
+        <label for="creci">CRECI</label>
+        <input type="text" id="creci" required placeholder="Ex: 123456-F">
+      </div>
+      <div class="field-grid">
+        <div class="field">
+          <label for="senha">Senha</label>
+          <div class="campo-senha">
+            <input type="password" id="senha" required minlength="6" autocomplete="new-password">
+            <button type="button" class="btn-toggle-senha" data-toggle-senha="senha" tabindex="-1"></button>
+          </div>
+        </div>
+        <div class="field">
+          <label for="senha2">Confirmar senha</label>
+          <div class="campo-senha">
+            <input type="password" id="senha2" required minlength="6" autocomplete="new-password">
+            <button type="button" class="btn-toggle-senha" data-toggle-senha="senha2" tabindex="-1"></button>
+          </div>
+        </div>
+      </div>
+      <button type="submit" class="btn btn-primary" style="width:100%;justify-content:center;">Criar minha conta</button>
+    </form>
+    <p class="hint">É uma imobiliária? <a href="cadastro-imobiliaria.html">Cadastre-se aqui</a>.</p>
+    <p class="hint">Já tem conta? <a href="conta-login.html">Entrar</a>.</p>
+  </div>
+</main>
+
+<script src="assets/app.js"></script>
+<script>
+document.getElementById('topbar').innerHTML = topbarHTML('', '');
+ligarTogglesSenha();
+
+if (getContaToken()) window.location.href = 'planos.html';
+
+document.getElementById('form-cadastro').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const erroEl = document.getElementById('erro');
+  erroEl.classList.remove('show');
+
+  const senha = document.getElementById('senha').value;
+  const senha2 = document.getElementById('senha2').value;
+  if (senha !== senha2) {
+    erroEl.textContent = 'As senhas não são iguais.';
+    erroEl.classList.add('show');
+    return;
+  }
+
+  try {
+    const resp = await apiConta('/contas', { method: 'POST', body: {
+      tipo: 'corretor',
+      nome: document.getElementById('nome').value,
+      email: document.getElementById('email').value,
+      telefone: document.getElementById('telefone').value,
+      creci: document.getElementById('creci').value,
+      senha,
+    }});
+    setContaToken(resp.token);
+    window.location.href = 'planos.html?tipo=corretor';
+  } catch (err) {
+    if (err.status === 409) erroEl.textContent = 'Já existe uma conta com esse e-mail.';
+    else if (err.detalhes) erroEl.textContent = err.detalhes.join(' ');
+    else erroEl.textContent = 'Erro: ' + err.message;
+    erroEl.classList.add('show');
+  }
+});
+</script>
+</body>
+</html>

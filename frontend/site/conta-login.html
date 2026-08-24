@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Entrar — Portal Malb Imóveis</title>
+<link rel="stylesheet" href="assets/app.css">
+</head>
+<body>
+<div id="topbar"></div>
+
+<main>
+  <div class="login-shell">
+    <h1>Entrar na sua conta</h1>
+    <p class="sub">Acesse sua conta de anunciante para gerenciar seu plano e seus imóveis.</p>
+    <div class="error-msg" id="erro"></div>
+    <form class="form-stack" id="form-login">
+      <div class="field">
+        <label for="email">E-mail</label>
+        <input type="email" id="email" required autocomplete="username">
+      </div>
+      <div class="field">
+        <label for="senha">Senha</label>
+        <div class="campo-senha">
+          <input type="password" id="senha" required autocomplete="current-password">
+          <button type="button" class="btn-toggle-senha" data-toggle-senha="senha" tabindex="-1"></button>
+        </div>
+      </div>
+      <button type="submit" class="btn btn-primary" style="width:100%;justify-content:center;">Entrar</button>
+    </form>
+    <p class="hint">Ainda não anuncia com a gente? <a href="planos.html">Veja os planos</a>.</p>
+  </div>
+</main>
+
+<script src="assets/app.js"></script>
+<script>
+document.getElementById('topbar').innerHTML = topbarHTML('', '');
+ligarTogglesSenha();
+
+const params = new URLSearchParams(window.location.search);
+const redirect = params.get('redirect') || 'planos.html';
+
+if (getContaToken()) window.location.href = redirect;
+
+document.getElementById('form-login').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const erroEl = document.getElementById('erro');
+  erroEl.classList.remove('show');
+
+  try {
+    const resp = await apiConta('/contas/login', { method: 'POST', body: {
+      email: document.getElementById('email').value,
+      senha: document.getElementById('senha').value,
+    }});
+    setContaToken(resp.token);
+    window.location.href = redirect;
+  } catch (err) {
+    if (err.status === 401) erroEl.textContent = 'E-mail ou senha inválidos.';
+    else if (err.detalhes) erroEl.textContent = err.detalhes.join(' ');
+    else erroEl.textContent = 'Erro: ' + err.message;
+    erroEl.classList.add('show');
+  }
+});
+</script>
+</body>
+</html>

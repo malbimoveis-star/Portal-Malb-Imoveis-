@@ -212,6 +212,17 @@ tr:last-child td { border-bottom: none; }
 .error-msg.show { display: block; }
 
 .admin-topbar { display: flex; align-items: center; justify-content: space-between; margin-bottom: 1.4rem; flex-wrap: wrap; gap: 0.8rem; }
+
+/* Cards de estatística — painel do anunciante (Fase 7.1) e reaproveitável
+   em qualquer outro resumo numérico que a gente precise mostrar depois. */
+.stat-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 0.8rem; margin-bottom: 1.6rem; }
+.stat-card { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 1rem 1.1rem; }
+.stat-card .stat-valor { font-family: 'Fraunces', serif; font-size: 1.9rem; font-weight: 600; color: var(--ink); line-height: 1.1; }
+.stat-card .stat-label { color: var(--ink-faint); font-size: 0.78rem; margin-top: 0.3rem; text-transform: uppercase; letter-spacing: 0.03em; }
+.plano-banner { background: var(--accent-soft); border: 1px solid var(--accent); border-radius: 12px; padding: 0.9rem 1.1rem; display: flex; align-items: center; justify-content: space-between; gap: 1rem; flex-wrap: wrap; margin-bottom: 1.4rem; }
+.plano-banner.aviso { background: color-mix(in srgb, var(--danger) 10%, transparent); border-color: var(--danger); }
+.plano-banner p { margin: 0; font-size: 0.88rem; color: var(--ink-soft); }
+.plano-banner strong { color: var(--ink); }
 .modal-backdrop { position: fixed; inset: 0; background: rgba(0,0,0,.4); display: none; align-items: center; justify-content: center; z-index: 40; padding: 1rem; }
 .modal-backdrop.show { display: flex; }
 .modal { background: var(--surface); border-radius: 14px; padding: 1.6rem; max-width: 560px; width: 100%; max-height: 85vh; overflow-y: auto; box-shadow: var(--shadow); }

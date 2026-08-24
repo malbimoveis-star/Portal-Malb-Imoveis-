@@ -320,7 +320,9 @@ function topbarHTML(active, base = '') {
       ${link('busca.html?finalidade=aluguel', 'Alugar', 'alugar')}
       ${link('favoritos.html', 'Favoritos', 'favoritos')}
       <div class="topbar-spacer"></div>
-      <a href="${base}planos.html" class="btn btn-ghost">Anunciar imóveis</a>
+      ${getContaToken()
+        ? `<a href="${base}painel-anunciante.html" class="btn btn-ghost">Meu painel</a>`
+        : `<a href="${base}planos.html" class="btn btn-ghost">Anunciar imóveis</a>`}
       <a href="${base}admin/index.html" class="btn btn-ghost">Painel do corretor</a>
     </div>
   </header>`;

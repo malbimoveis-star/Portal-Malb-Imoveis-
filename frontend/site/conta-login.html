@@ -26,8 +26,9 @@
           <button type="button" class="btn-toggle-senha" data-toggle-senha="senha" tabindex="-1"></button>
         </div>
       </div>
-      <button type="submit" class="btn btn-primary" style="width:100%;justify-content:center;">Entrar</button>
+      <button type="submit" class="btn btn-primary" id="btn-entrar" style="width:100%;justify-content:center;">Entrar</button>
     </form>
+    <p class="hint" id="hint-acordando" style="display:none;">O servidor pode levar até 1 minuto pra responder na primeira vez do dia (fica "dormindo" pra economizar, plano gratuito). Só aguarde — não precisa clicar de novo.</p>
     <p class="hint">Ainda não anuncia com a gente? <a href="planos.html">Veja os planos</a>.</p>
   </div>
 </main>
@@ -45,8 +46,9 @@ if (getContaToken()) window.location.href = redirect;
 document.getElementById('form-login').addEventListener('submit', async (e) => {
   e.preventDefault();
   const erroEl = document.getElementById('erro');
+  const btn = document.getElementById('btn-entrar');
   erroEl.classList.remove('show');
-
+  const pararCarregando = iniciarCarregando(btn, 'Entrando…', 'hint-acordando');
   try {
     const resp = await apiConta('/contas/login', { method: 'POST', body: {
       email: document.getElementById('email').value,
@@ -59,6 +61,8 @@ document.getElementById('form-login').addEventListener('submit', async (e) => {
     else if (err.detalhes) erroEl.textContent = err.detalhes.join(' ');
     else erroEl.textContent = 'Erro: ' + err.message;
     erroEl.classList.add('show');
+  } finally {
+    pararCarregando();
   }
 });
 </script>

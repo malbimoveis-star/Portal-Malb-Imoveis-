@@ -49,8 +49,9 @@
           </div>
         </div>
       </div>
-      <button type="submit" class="btn btn-primary" style="width:100%;justify-content:center;">Criar minha conta</button>
+      <button type="submit" class="btn btn-primary" id="btn-criar" style="width:100%;justify-content:center;">Criar minha conta</button>
     </form>
+    <p class="hint" id="hint-acordando" style="display:none;">O servidor pode levar até 1 minuto pra responder na primeira vez do dia (fica "dormindo" pra economizar, plano gratuito). Só aguarde — não precisa clicar de novo.</p>
     <p class="hint">É uma imobiliária? <a href="cadastro-imobiliaria.html">Cadastre-se aqui</a>.</p>
     <p class="hint">Já tem conta? <a href="conta-login.html">Entrar</a>.</p>
   </div>
@@ -76,6 +77,8 @@ document.getElementById('form-cadastro').addEventListener('submit', async (e) =>
     return;
   }
 
+  const btn = document.getElementById('btn-criar');
+  const pararCarregando = iniciarCarregando(btn, 'Criando…', 'hint-acordando');
   try {
     const resp = await apiConta('/contas', { method: 'POST', body: {
       tipo: 'corretor',
@@ -92,6 +95,8 @@ document.getElementById('form-cadastro').addEventListener('submit', async (e) =>
     else if (err.detalhes) erroEl.textContent = err.detalhes.join(' ');
     else erroEl.textContent = 'Erro: ' + err.message;
     erroEl.classList.add('show');
+  } finally {
+    pararCarregando();
   }
 });
 </script>

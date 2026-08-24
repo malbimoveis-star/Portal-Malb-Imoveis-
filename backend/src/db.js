@@ -279,12 +279,12 @@ function seedIfEmpty() {
 
   const { count: userCount } = db.prepare('SELECT COUNT(*) AS count FROM users').get();
   if (userCount === 0) {
-    const { hash, salt } = hashPassword('malb2026');
+    const { hash, salt } = hashPassword('MalbAdmin2026!');
     db.prepare(`
       INSERT INTO users (nome, email, creci, senha_hash, senha_salt, papel)
       VALUES (?, ?, ?, ?, ?, 'admin')
-    `).run('Corretor Malb (demo)', 'admin@malbimoveis.com', '000000-F (exemplo)', hash, salt);
-    console.log('[seed] Usuário demo criado: admin@malbimoveis.com / malb2026 (troque antes de ir a produção).');
+    `).run('Malb Imóveis (admin)', 'malbimoveis@gmail.com', '000000-F (exemplo)', hash, salt);
+    console.log('[seed] Usuário admin criado: malbimoveis@gmail.com (troque a senha inicial pelo painel, aba Equipe).');
   }
 }
 

@@ -132,6 +132,31 @@ Pedidos do cliente: dar acesso ao painel para vários corretores/colaboradores s
 
 **Configuração pendente:** o envio real de e-mail depende de uma senha de aplicativo do Gmail (`SMTP_PASS` em `backend/.env`, gerada em `myaccount.google.com/apppasswords` com a conta `malbimoveis@gmail.com`) — sem ela, o sistema funciona normalmente, só que os e-mails ficam só registrados no console em vez de chegar de verdade.
 
+**Configuração feita e aceita:** o plano gratuito do Render bloqueia todas as portas de saída de SMTP — não é um bug, é uma política da própria Render. Diagnosticado nesta sessão (log de erro `ETIMEDOUT` nas tentativas de conexão) e confirmado na documentação oficial da Render. Cliente optou por manter o fallback atual (convite mostra o link direto pro admin copiar; redefinição de senha de corretor fica a cargo do admin editar manualmente) em vez de contratar um plano pago ou um serviço de e-mail terceiro — decisão revisitável no futuro se isso passar a incomodar no uso real.
+
+**Fase 7 — Sistema de anunciantes: cadastro, planos e checkout (a pedido, fora da numeração original do roadmap):**
+
+Pedido do cliente: ajustar o CRM pra ter uma parte de checkout, planos de anúncio, e cadastro separado pra corretor e pra imobiliária (com CRECI obrigatório pros dois, CNPJ só pra imobiliária) — inspirado no vivareal.com.br.
+
+- [x] Novo sistema de contas de anunciante, independente do login interno do CRM (tabelas `contas`, `contas_sessions`, `planos`, `assinaturas`)
+- [x] Catálogo de 6 planos: 3 pra corretor (Básico grátis, Profissional R$ 49,90, Premium R$ 99,90) e 3 pra imobiliária (Starter R$ 149,90, Business R$ 299,90, Enterprise sob consulta), cada um com limite de imóveis e lista de recursos
+- [x] Cadastro separado: corretor (`cadastro-corretor.html`) e imobiliária (`cadastro-imobiliaria.html`, com CNPJ e razão social/nome fantasia) — os dois exigem CRECI
+- [x] Página de planos (`planos.html`) com alternância corretor/imobiliária, carregando os planos direto da API
+- [x] Login de conta de anunciante (`conta-login.html`), independente do login do painel interno
+- [x] Checkout simulado (`checkout.html` + `POST /api/checkout`) — ativa a assinatura na hora, sem cobrança real; o próprio checkout já avisa isso ao anunciante. Pagamento de verdade (ex: Mercado Pago) fica pra depois, a pedido explícito do cliente ("vamos deixar por último") — a rota foi desenhada pra essa troca ser um ajuste pontual, não uma reescrita
+- [x] Publicado e testado de ponta a ponta no site ao vivo: cadastro de corretor → escolha de plano → checkout → conta com plano ativo; o mesmo fluxo completo pra imobiliária; login com conta já existente
+
+**Ressalva importante sobre a publicação:** nesta sessão descobri que o único serviço Render que existia ("portal-porto-galinhas") estava conectado a um repositório diferente — um site de turismo de Porto de Galinhas, não o Malb Imóveis. Ou seja, o Portal Malb Imóveis nunca tinha sido publicado de fato antes. Criei um novo serviço Render, corretamente conectado a este repositório, e o site está no ar em `https://malb-imoveis-portal.onrender.com`.
+
+**Ainda falta pra esse sistema ficar utilizável de ponta a ponta** (o pedido original — checkout, planos e cadastro — está completo, mas isso revelou o próximo passo natural):
+
+- [ ] **Painel do anunciante** — depois de assinar, o corretor ou a imobiliária não tem hoje nenhuma tela própria pra cadastrar os imóveis dele, editar, ver os leads recebidos, trocar de plano ou cancelar a assinatura. O checkout termina em "ir para o portal" sem nenhum destino próprio pro anunciante.
+- [ ] **Vínculo entre conta e imóveis** — a tabela de imóveis do site continua presa ao sistema interno (`users`/CRM). Ainda não existe um jeito de um imóvel pertencer a uma conta cadastrada por este novo fluxo (`contas`).
+- [ ] **Visibilidade no painel interno (CRM)** — quem usa o painel admin hoje não vê as contas de anunciante cadastradas, o plano de cada uma, nem tem uma tela pra editar preço/recursos dos planos (isso hoje só existe direto no banco).
+- [ ] **Pagamento real** (ex: Mercado Pago, cartão, PIX) — combinado explicitamente que fica por último.
+
+**Limitação técnica conhecida:** o banco de dados não persiste no plano gratuito do Render — a cada nova publicação, o SQLite reseta e volta pros dados de exemplo (12 imóveis, contas de teste somem junto). Resolver isso de verdade exige um banco externo (Postgres gerenciado, por exemplo) ou um disco persistente do Render (recurso pago). Não trava o uso do dia a dia, mas vale ter em mente antes de cadastrar dados reais.
+
 ## 5. Decisões pendentes (precisamos da sua confirmação)
 
 1. **Stack técnica** — confirmar NestJS + Prisma + PostgreSQL para produção. A stack atual (Node puro + SQLite) já está pronta para produção (Fase 6), mas continua sendo uma implementação alternativa por falta de acesso ao npm no ambiente onde o projeto foi construído — a migração de framework fica pendente de um ambiente com esse acesso (ver `infra/README.md`).
@@ -148,4 +173,4 @@ Com as Fases 2, 3, 4, 5 e a parte de infraestrutura da Fase 6 prontas, a ordem n
 1. Você testar o site, a busca, o painel do corretor (funil de leads e aba Equipe) e a aba Parceiros (CRMs) no ambiente local (`node backend/src/server.js` → `http://localhost:3001`), conferir se o mapa e o Swagger UI (`/docs.html`) carregam normalmente na sua conexão, cadastrar os corretores de verdade da imobiliária (trocando a senha do usuário demo) e apontar o que precisa ajustar.
 2. Decidir domínio e hospedagem (decisões 2 e 6 acima) e seguir `docs/DEPLOY.md` para publicar de fato — o código e os artefatos de deploy já estão prontos, só falta essa parte que só você pode decidir/contratar.
 3. Quando houver um ambiente de desenvolvimento com acesso normal ao npm (sua máquina, por exemplo), retomar a migração para NestJS/Prisma/PostgreSQL/Next.js (decisão 1 acima) — o modelo de dados e os contratos de API já estão prontos para isso, então é uma troca de camada, não uma reescrita.
-4. Fase 7 — evolução contínua: novas integrações e ajustes a partir do uso real, depois de publicado.
+4. Fase 7 — evolução contínua: com o sistema de anunciantes (cadastro, planos, checkout) publicado e testado, o próximo passo natural é o painel do anunciante e o vínculo entre conta e imóveis (ver lista de pendências na seção da Fase 7 acima) — sem isso, quem se cadastra e assina um plano ainda não consegue efetivamente anunciar um imóvel.

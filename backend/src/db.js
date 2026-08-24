@@ -125,6 +125,62 @@ db.exec(`
     expires_at TEXT NOT NULL,
     used_at TEXT
   );
+
+  -- Fase 7 — Planos e cadastro de anunciantes (corretores autônomos e
+  -- imobiliárias que querem anunciar imóveis no portal, modelo VivaReal).
+  -- Isso é diferente da tabela users: users é a equipe interna da Malb
+  -- Imóveis (quem usa o painel /admin pra gerenciar os imóveis da própria
+  -- Malb); contas são clientes externos do portal, cada um com seu próprio
+  -- plano pago e seus próprios imóveis anunciados.
+  CREATE TABLE IF NOT EXISTS planos (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    tipo TEXT NOT NULL CHECK (tipo IN ('corretor','imobiliaria')),
+    nome TEXT NOT NULL,
+    preco_mensal REAL NOT NULL,
+    limite_anuncios INTEGER,
+    destaque INTEGER NOT NULL DEFAULT 0,
+    descricao TEXT NOT NULL DEFAULT '',
+    recursos TEXT NOT NULL DEFAULT '[]',
+    ordem INTEGER NOT NULL DEFAULT 0,
+    ativo INTEGER NOT NULL DEFAULT 1
+  );
+
+  CREATE TABLE IF NOT EXISTS contas (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    tipo TEXT NOT NULL CHECK (tipo IN ('corretor','imobiliaria')),
+    nome TEXT NOT NULL,
+    nome_fantasia TEXT,
+    cnpj TEXT,
+    cpf TEXT,
+    creci TEXT NOT NULL,
+    email TEXT NOT NULL UNIQUE,
+    telefone TEXT,
+    senha_hash TEXT NOT NULL,
+    senha_salt TEXT NOT NULL,
+    plano_id INTEGER REFERENCES planos(id) ON DELETE SET NULL,
+    status_assinatura TEXT NOT NULL DEFAULT 'pendente' CHECK (status_assinatura IN ('pendente','ativa','cancelada','inadimplente')),
+    ativo INTEGER NOT NULL DEFAULT 1,
+    created_at TEXT NOT NULL DEFAULT (datetime('now'))
+  );
+
+  CREATE TABLE IF NOT EXISTS assinaturas (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    conta_id INTEGER NOT NULL REFERENCES contas(id) ON DELETE CASCADE,
+    plano_id INTEGER NOT NULL REFERENCES planos(id),
+    status TEXT NOT NULL DEFAULT 'pendente' CHECK (status IN ('pendente','ativa','cancelada')),
+    metodo_pagamento TEXT,
+    simulado INTEGER NOT NULL DEFAULT 1,
+    inicio TEXT NOT NULL DEFAULT (datetime('now')),
+    fim TEXT,
+    created_at TEXT NOT NULL DEFAULT (datetime('now'))
+  );
+
+  CREATE TABLE IF NOT EXISTS contas_sessions (
+    token TEXT PRIMARY KEY,
+    conta_id INTEGER NOT NULL REFERENCES contas(id) ON DELETE CASCADE,
+    created_at TEXT NOT NULL DEFAULT (datetime('now')),
+    expires_at TEXT NOT NULL
+  );
 `);
 
 // Migração leve: adiciona colunas novas em bancos já existentes (criados antes
@@ -197,6 +253,28 @@ function seedIfEmpty() {
       throw err;
     }
     console.log(`[seed] ${seed.length} imóveis inseridos.`);
+  }
+
+  const { count: planoCount } = db.prepare('SELECT COUNT(*) AS count FROM planos').get();
+  if (planoCount === 0) {
+    const insertPlano = db.prepare(`
+      INSERT INTO planos (tipo, nome, preco_mensal, limite_anuncios, destaque, descricao, recursos, ordem)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+    `);
+    // Sugestão inicial de preços — ajuste livremente pela aba de planos no
+    // painel admin (ou direto no banco) quando quiser mudar os valores.
+    const planosIniciais = [
+      ['corretor', 'Básico', 0, 5, 0, 'Pra começar a anunciar sem custo.', ['Até 5 imóveis anunciados', 'Página pública do corretor', 'Recebimento de leads por e-mail'], 1],
+      ['corretor', 'Profissional', 49.9, 30, 0, 'Pra quem já vive de imóveis.', ['Até 30 imóveis anunciados', 'Selo de corretor verificado', 'Estatísticas de visualização'], 2],
+      ['corretor', 'Premium', 99.9, null, 1, 'Máximo alcance pros seus imóveis.', ['Imóveis ilimitados', 'Destaque nas buscas', 'Relatório mensal de desempenho'], 3],
+      ['imobiliaria', 'Starter', 149.9, 50, 0, 'Pra imobiliárias pequenas.', ['Até 50 imóveis anunciados', 'Até 3 corretores vinculados', 'Painel de leads compartilhado'], 1],
+      ['imobiliaria', 'Business', 299.9, 200, 1, 'Pra imobiliárias em crescimento.', ['Até 200 imóveis anunciados', 'Até 15 corretores vinculados', 'Destaque nas buscas', 'Relatórios avançados'], 2],
+      ['imobiliaria', 'Enterprise', 0, null, 1, 'Sob consulta, pra grandes redes.', ['Imóveis e corretores ilimitados', 'Integração via API', 'Gerente de contas dedicado'], 3],
+    ];
+    for (const p of planosIniciais) {
+      insertPlano.run(p[0], p[1], p[2], p[3], p[4], p[5], JSON.stringify(p[6]), p[7]);
+    }
+    console.log(`[seed] ${planosIniciais.length} planos inseridos.`);
   }
 
   const { count: userCount } = db.prepare('SELECT COUNT(*) AS count FROM users').get();

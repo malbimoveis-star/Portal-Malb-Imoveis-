@@ -36,6 +36,7 @@ const { registerLeadsRoutes } = require('./routes/leads');
 const { registerAuthRoutes } = require('./routes/auth');
 const { registerParceirosRoutes } = require('./routes/parceiros');
 const { registerUsuariosRoutes } = require('./routes/usuarios');
+const { registerContasRoutes } = require('./routes/contas');
 const { db } = require('./db');
 const { buildImovelSeo, buildBuscaSeo, injectBasicSeo, setJsonLd } = require('./seo');
 
@@ -62,6 +63,7 @@ registerLeadsRoutes(router);
 registerAuthRoutes(router);
 registerParceirosRoutes(router);
 registerUsuariosRoutes(router);
+registerContasRoutes(router);
 
 function sendJson(res, status, payload) {
   if (payload === null) {

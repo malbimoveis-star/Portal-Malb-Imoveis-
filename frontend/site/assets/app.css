@@ -343,10 +343,10 @@ tr:last-child td { border-bottom: none; }
 
 @media (max-width: 880px) {
    .hero-flex { grid-template-columns: 1fr; text-align: center; gap: 1.4rem; }
-   .hero-flex .hero-media { order: -1; aspect-ratio: 16/10; }
+   .hero-flex .hero-media { order: -1; }
 }
 @media (max-width: 560px) {
-   .hero-flex .hero-media { border-radius: 14px; aspect-ratio: 4/3; }
+   .hero-flex .hero-media { border-radius: 14px; }
 }/* Hero com imagem (avatar + imovel) - estilo Viva Real */
 .hero-flex {
    display: grid; grid-template-columns: 1fr 1fr; gap: 2.5rem; align-items: center;
@@ -364,8 +364,8 @@ tr:last-child td { border-bottom: none; }
 
 @media (max-width: 880px) {
    .hero-flex { grid-template-columns: 1fr; text-align: center; gap: 1.4rem; }
-   .hero-flex .hero-media { order: -1; aspect-ratio: 16/10; }
+   .hero-flex .hero-media { order: -1; }
 }
 @media (max-width: 560px) {
-   .hero-flex .hero-media { border-radius: 14px; aspect-ratio: 4/3; }
+   .hero-flex .hero-media { border-radius: 14px; }
 }

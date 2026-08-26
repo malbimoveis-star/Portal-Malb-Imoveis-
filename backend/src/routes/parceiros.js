@@ -1,21 +1,8 @@
 'use strict';
 
-/**
- * Fase 4 — API de integração com CRMs parceiros.
- *
- * Duas famílias de rotas aqui:
- *  - /api/parceiros/*        — gestão de parceiros pelo painel (sessão do corretor)
- *  - /api/v1/parceiros/*     — a API pública que o CRM do parceiro consome
- *                              (autenticada por chave de API, header X-Api-Key)
- *
- * O "v1" no caminho da API pública é proposital: é a superfície de contrato
- * com terceiros, então precisa poder evoluir (v2, v3...) sem quebrar quem já
- * integrou — diferente das rotas internas do painel, que podem mudar livre.
- */
-
 const { db } = require('../db');
 const { gerarChaveApi, gerarWebhookSecret, requireParceiro } = require('../auth-parceiro');
-const { rowToImovel, validarPayload } = require('./imoveis');
+const { rowToImovel, validarPayload, normalizarComposicao } = require('./imoveis');
 const { dispararWebhook } = require('../webhooks');
 
 function rowToParceiro(row, { comEstatisticas } = {}) {
@@ -42,24 +29,41 @@ function escapeXml(valor) {
 
 function imovelParaXml(im) {
   const amenitiesXml = (im.amenities || []).map((a) => `      <Item>${escapeXml(a)}</Item>`).join('\n');
+  const fotosXml = (im.fotos && im.fotos.length ? im.fotos : (im.foto ? [im.foto] : []))
+    .map((url, i) => `      <Item principal="${i === 0}">${escapeXml(url)}</Item>`).join('\n');
   return `  <Imovel>
     <Id>${im.id}</Id>
     <ReferenciaExterna>${escapeXml(im.referenciaExterna)}</ReferenciaExterna>
     <Tipo>${escapeXml(im.tipo)}</Tipo>
     <Finalidade>${escapeXml(im.finalidade)}</Finalidade>
     <Preco>${im.preco}</Preco>
+    <Condominio>${im.condominio || 0}</Condominio>
+    <Iptu>${im.iptu || 0}</Iptu>
     <Titulo>${escapeXml(im.titulo)}</Titulo>
+    <Endereco>${escapeXml(im.endereco)}</Endereco>
+    <Numero>${escapeXml(im.numero)}</Numero>
+    <Complemento>${escapeXml(im.complemento)}</Complemento>
+    <Cep>${escapeXml(im.cep)}</Cep>
     <Bairro>${escapeXml(im.bairro)}</Bairro>
     <Cidade>${escapeXml(im.cidade)}</Cidade>
     <Quartos>${im.quartos}</Quartos>
+    <Suites>${im.suites || 0}</Suites>
     <Banheiros>${im.banheiros}</Banheiros>
+    <Lavabos>${im.lavabos || 0}</Lavabos>
     <Vagas>${im.vagas}</Vagas>
+    <VagasCobertas>${im.vagasCobertas || 0}</VagasCobertas>
+    <VagasDescobertas>${im.vagasDescobertas || 0}</VagasDescobertas>
     <Area>${im.area}</Area>
+    <AreaUtil>${im.areaUtil || 0}</AreaUtil>
+    <AnoConstrucao>${im.anoConstrucao ?? ''}</AnoConstrucao>
     <Descricao>${escapeXml(im.descricao)}</Descricao>
     <Amenities>
 ${amenitiesXml}
     </Amenities>
     <Foto>${escapeXml(im.foto)}</Foto>
+    <Fotos>
+${fotosXml}
+    </Fotos>
     <Latitude>${im.lat ?? ''}</Latitude>
     <Longitude>${im.lng ?? ''}</Longitude>
     <Status>${escapeXml(im.status)}</Status>
@@ -68,11 +72,6 @@ ${amenitiesXml}
 }
 
 function registerParceirosRoutes(router) {
-  // ---------------------------------------------------------------------
-  // Gestão de parceiros pelo painel (sessão do corretor — mesmo padrão de
-  // autenticação das rotas /api/imoveis e /api/leads)
-  // ---------------------------------------------------------------------
-
   router.get('/api/parceiros', (req, res, params, query, body, user) => {
     if (!user) return res.json(401, { error: 'Autenticação necessária' });
     const rows = db.prepare('SELECT * FROM parceiros ORDER BY created_at DESC').all();
@@ -91,7 +90,6 @@ function registerParceirosRoutes(router) {
     `).run(body.nome, hash, prefixo, body.webhookUrl || null, webhookSecret);
 
     const row = db.prepare('SELECT * FROM parceiros WHERE id = ?').get(info.lastInsertRowid);
-    // A chave em texto puro só existe neste momento — nunca mais é recuperável.
     res.json(201, { data: { ...rowToParceiro(row), chaveApi: chave, webhookSecret } });
   });
 
@@ -143,11 +141,6 @@ function registerParceirosRoutes(router) {
     });
   });
 
-  // ---------------------------------------------------------------------
-  // API pública consumida pelo CRM do parceiro (autenticação por X-Api-Key)
-  // ---------------------------------------------------------------------
-
-  // Exportação: lista os imóveis ativos da Malb para o parceiro publicar.
   router.get('/api/v1/parceiros/imoveis', (req, res) => {
     const parceiro = requireParceiro(req);
     if (!parceiro) return res.json(401, { error: 'Chave de API ausente ou inválida (header X-Api-Key)' });
@@ -155,9 +148,6 @@ function registerParceirosRoutes(router) {
     res.json(200, { data: rows.map(rowToImovel), total: rows.length });
   });
 
-  // Mesma exportação, em XML — formato próprio documentado em docs/API.md,
-  // inspirado nos feeds usados no mercado imobiliário (não é o schema
-  // proprietário de nenhum portal específico).
   router.get('/api/v1/parceiros/imoveis.xml', (req, res) => {
     const parceiro = requireParceiro(req);
     if (!parceiro) return res.json(401, { error: 'Chave de API ausente ou inválida (header X-Api-Key)' });
@@ -174,9 +164,6 @@ function registerParceirosRoutes(router) {
     res.json(200, { data: rowToImovel(row) });
   });
 
-  // Importação: o parceiro publica (cria ou atualiza) um imóvel dele no
-  // catálogo da Malb, identificado pela referenciaExterna (o ID no sistema
-  // do parceiro) — upsert por (parceiro_id, referencia_externa).
   router.post('/api/v1/parceiros/imoveis', (req, res, params, query, body) => {
     const parceiro = requireParceiro(req);
     if (!parceiro) return res.json(401, { error: 'Chave de API ausente ou inválida (header X-Api-Key)' });
@@ -191,13 +178,23 @@ function registerParceirosRoutes(router) {
     `).get(parceiro.id, body.referenciaExterna);
 
     if (existing) {
+      const comp = normalizarComposicao(body, rowToImovel(existing));
       db.prepare(`
-        UPDATE imoveis SET tipo=?, finalidade=?, preco=?, titulo=?, bairro=?, cidade=?, quartos=?, banheiros=?, vagas=?, area=?, descricao=?, amenities=?, foto=?, lat=?, lng=?, status=?, updated_at=datetime('now')
+        UPDATE imoveis SET
+          tipo=?, finalidade=?, preco=?, titulo=?, endereco=?, numero=?, complemento=?, cep=?, bairro=?, cidade=?,
+          quartos=?, suites=?, banheiros=?, lavabos=?, vagas=?, vagas_cobertas=?, vagas_descobertas=?,
+          area=?, area_util=?, condominio=?, iptu=?, ano_construcao=?,
+          descricao=?, amenities=?, foto=?, fotos=?, lat=?, lng=?, status=?, updated_at=datetime('now')
         WHERE id = ?
       `).run(
-        body.tipo, body.finalidade, Number(body.preco), body.titulo, body.bairro, body.cidade,
-        Number(body.quartos || 0), Number(body.banheiros || 0), Number(body.vagas || 0), Number(body.area || 0),
-        body.descricao || '', JSON.stringify(body.amenities || []), body.foto || '',
+        body.tipo, body.finalidade, Number(body.preco), body.titulo,
+        body.endereco || '', body.numero || '', body.complemento || '', body.cep || '',
+        body.bairro, body.cidade,
+        Number(body.quartos || 0), Number(body.suites || 0), Number(body.banheiros || 0), Number(body.lavabos || 0),
+        comp.vagas, comp.vagasCobertas, comp.vagasDescobertas,
+        Number(body.area || 0), Number(body.areaUtil || 0), Number(body.condominio || 0), Number(body.iptu || 0),
+        body.anoConstrucao != null && body.anoConstrucao !== '' ? Number(body.anoConstrucao) : null,
+        body.descricao || '', JSON.stringify(body.amenities || []), comp.foto, JSON.stringify(comp.fotos),
         body.lat != null && body.lat !== '' ? Number(body.lat) : null,
         body.lng != null && body.lng !== '' ? Number(body.lng) : null,
         body.status || existing.status, existing.id
@@ -206,13 +203,24 @@ function registerParceirosRoutes(router) {
       return res.json(200, { data: rowToImovel(row) });
     }
 
+    const comp = normalizarComposicao(body, null);
     const info = db.prepare(`
-      INSERT INTO imoveis (tipo, finalidade, preco, titulo, bairro, cidade, quartos, banheiros, vagas, area, descricao, amenities, foto, lat, lng, status, origem, parceiro_id, referencia_externa)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'parceiro', ?, ?)
+      INSERT INTO imoveis (
+        tipo, finalidade, preco, titulo, endereco, numero, complemento, cep, bairro, cidade,
+        quartos, suites, banheiros, lavabos, vagas, vagas_cobertas, vagas_descobertas,
+        area, area_util, condominio, iptu, ano_construcao,
+        descricao, amenities, foto, fotos, lat, lng, status, origem, parceiro_id, referencia_externa
+      )
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'parceiro', ?, ?)
     `).run(
-      body.tipo, body.finalidade, Number(body.preco), body.titulo, body.bairro, body.cidade,
-      Number(body.quartos || 0), Number(body.banheiros || 0), Number(body.vagas || 0), Number(body.area || 0),
-      body.descricao || '', JSON.stringify(body.amenities || []), body.foto || '',
+      body.tipo, body.finalidade, Number(body.preco), body.titulo,
+      body.endereco || '', body.numero || '', body.complemento || '', body.cep || '',
+      body.bairro, body.cidade,
+      Number(body.quartos || 0), Number(body.suites || 0), Number(body.banheiros || 0), Number(body.lavabos || 0),
+      comp.vagas, comp.vagasCobertas, comp.vagasDescobertas,
+      Number(body.area || 0), Number(body.areaUtil || 0), Number(body.condominio || 0), Number(body.iptu || 0),
+      body.anoConstrucao != null && body.anoConstrucao !== '' ? Number(body.anoConstrucao) : null,
+      body.descricao || '', JSON.stringify(body.amenities || []), comp.foto, JSON.stringify(comp.fotos),
       body.lat != null && body.lat !== '' ? Number(body.lat) : null,
       body.lng != null && body.lng !== '' ? Number(body.lng) : null,
       body.status || 'disponivel', parceiro.id, body.referenciaExterna
@@ -231,8 +239,6 @@ function registerParceirosRoutes(router) {
     res.json(204, null);
   });
 
-  // Endpoint de teste: dispara um webhook de exemplo para o parceiro
-  // confirmar que a URL cadastrada está recebendo entregas corretamente.
   router.post('/api/v1/parceiros/webhook-teste', (req, res) => {
     const parceiro = requireParceiro(req);
     if (!parceiro) return res.json(401, { error: 'Chave de API ausente ou inválida (header X-Api-Key)' });

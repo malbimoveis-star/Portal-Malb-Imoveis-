@@ -4,6 +4,8 @@ Base URL local: `http://localhost:3001/api`
 
 Todas as respostas são JSON. Erros seguem o formato `{ "error": "mensagem", "detalhes": [...] }` (campo `detalhes` só aparece em erros de validação).
 
+Legenda de autenticação usada nos títulos das rotas abaixo: 🔒 = sessão de usuário interno (`/api/auth/login`, painel administrativo/corretor); 🔑 = sessão de conta de anunciante autônomo (`/api/contas/login`, painel do corretor/imobiliária autoatendimento); sem selo = rota pública, sem autenticação.
+
 ## Produção (Fase 6)
 
 Em produção, o comportamento da API é ajustado por variáveis de ambiente (ver `backend/.env.example`, e o passo a passo de publicação em `docs/DEPLOY.md`):
@@ -85,13 +87,44 @@ Resposta: `{ "data": [ {...imóvel} ], "total": N }`. Cada imóvel inclui `lat`/
 Detalhe de um imóvel. `404` se não existir.
 
 ### `POST /api/imoveis` 🔒
-Cria um imóvel. Campos obrigatórios: `tipo`, `finalidade` (`venda`|`aluguel`), `preco`, `titulo`, `bairro`, `cidade`. Opcionais: `quartos`, `banheiros`, `vagas`, `area`, `descricao`, `amenities` (array de strings), `foto` (URL ou data URI), `lat`/`lng` (números, para exibir o mapa na página do imóvel), `status` (padrão `disponivel`).
+Cria um imóvel. Campos obrigatórios: `tipo`, `finalidade` (`venda`|`aluguel`), `preco`, `titulo`, `bairro`, `cidade`.
+
+Opcionais — bloco básico: `quartos`, `banheiros`, `vagas`, `area` (m², área total/construída), `descricao`, `amenities` (array de strings), `lat`/`lng` (números, para exibir o mapa na página do imóvel), `status` (padrão `disponivel`).
+
+Opcionais — bloco de características (Fase 7, alinhado ao cadastro estilo CRM de imobiliária):
+- `suites` (inteiro — quantos dos `quartos` são suíte), `lavabos` (inteiro).
+- `vagasCobertas` e `vagasDescobertas` (inteiros). Se enviados, `vagas` é calculado automaticamente como a soma dos dois; se só `vagas` for enviado, ele é usado como está.
+- `areaUtil` (m², área privativa — opcional, diferente de `area`).
+- `anoConstrucao` (inteiro, opcional).
+
+Opcionais — bloco de localização detalhada: `endereco`, `numero`, `complemento`, `cep` (todos texto — complementam `bairro`/`cidade`, que continuam obrigatórios).
+
+Opcionais — bloco financeiro: `condominio` (valor mensal, R$), `iptu` (valor anual, R$).
+
+Opcionais — fotos: `foto` (URL ou data URI — foto de capa, mantido por compatibilidade) e/ou `fotos` (array de URLs/data URIs — galeria completa; a primeira posição é a capa). Envie um dos dois ou os dois — se só `fotos` for enviado, `foto` é preenchido automaticamente com a primeira posição; se só `foto` for enviado, ele também aparece como a única entrada de `fotos`.
+
+O catálogo de `amenities` é livre (qualquer string), mas o painel organiza as chaves conhecidas em 4 categorias (Característica do imóvel, Instalação e segurança, Acabamento, Lazer) com ícone — ex.: `piscina`, `churrasqueira`, `academia`, `playground`, `elevador`, `portao_eletronico`, `mobiliado`, `vista_mar`. Chaves fora do catálogo continuam aceitas e exibidas como texto simples.
 
 ### `PUT /api/imoveis/:id` 🔒
-Atualiza um imóvel (aceita atualização parcial — os campos não enviados mantêm o valor atual).
+Atualiza um imóvel (aceita atualização parcial — os campos não enviados mantêm o valor atual). Aceita todos os campos de `POST /api/imoveis` acima.
 
 ### `DELETE /api/imoveis/:id` 🔒
 Remove um imóvel. Resposta `204` sem corpo.
+
+## Autoatendimento — imóveis da conta (`/api/contas/me/imoveis`) 🔑
+
+Rotas usadas pelo painel do corretor/imobiliária autônomo (`painel-anunciante.html`) para o próprio anunciante cadastrar, editar e excluir os imóveis dele — sem depender do painel administrativo. Autenticação por sessão de **conta** (`Authorization: Bearer <token de conta>`, obtido em `POST /api/contas/login`), diferente da sessão de usuário interno usada nas demais rotas 🔒 deste documento. Cada imóvel criado por aqui é automaticamente vinculado à conta autenticada (`conta_id`) e só aparece/pode ser editado por ela.
+
+### `POST /api/contas/me/imoveis` 🔑
+Cria um imóvel para a conta autenticada. Mesmo corpo de `POST /api/imoveis` (ver campos acima). Duas travas antes de criar:
+- `403` se a conta não tiver plano com `status_assinatura = "ativa"` — mensagem orienta a escolher um plano em `/planos.html`.
+- `403` se o plano tiver `limite_anuncios` definido e a conta já tiver atingido esse número de imóveis cadastrados (contagem própria, não conta imóveis de outras contas).
+
+### `PUT /api/contas/me/imoveis/:id` 🔑
+Atualiza um imóvel — mesmas regras de atualização parcial de `PUT /api/imoveis/:id`. `404` se o imóvel não existir ou não pertencer à conta autenticada (nunca revela que o imóvel existe e é de outra conta).
+
+### `DELETE /api/contas/me/imoveis/:id` 🔑
+Remove um imóvel da conta autenticada. `404` nas mesmas condições do `PUT` acima. Resposta `204` sem corpo.
 
 ## Leads
 
@@ -179,13 +212,13 @@ Toda rota abaixo responde `401 { "error": "Chave de API ausente ou inválida (he
 Exporta os imóveis da Malb com `status=disponivel`, em JSON — para o parceiro publicar no site/CRM dele. Resposta: `{ "data": [ {...imóvel} ], "total": N }`.
 
 ### `GET /api/v1/parceiros/imoveis.xml`
-O mesmo conteúdo, em um **feed XML próprio do Portal Malb** (`Content-Type: application/xml`), com elemento raiz `<Imoveis>` e um `<Imovel>` por item (`Id`, `ReferenciaExterna`, `Tipo`, `Finalidade`, `Preco`, `Titulo`, `Bairro`, `Cidade`, `Quartos`, `Banheiros`, `Vagas`, `Area`, `Descricao`, `Amenities`/`Item`, `Foto`, `Latitude`, `Longitude`, `Status`, `AtualizadoEm`). **Importante:** este é um formato próprio, inspirado em convenções comuns de feeds do mercado imobiliário — não é uma cópia do schema proprietário de nenhum portal real (não tivemos acesso à especificação exata de nenhum concorrente ao desenhar isso).
+O mesmo conteúdo, em um **feed XML próprio do Portal Malb** (`Content-Type: application/xml`), com elemento raiz `<Imoveis>` e um `<Imovel>` por item: `Id`, `ReferenciaExterna`, `Tipo`, `Finalidade`, `Preco`, `Titulo`, `Bairro`, `Cidade`, `Endereco`, `Numero`, `Complemento`, `Cep`, `Quartos`, `Suites`, `Banheiros`, `Lavabos`, `Vagas`, `VagasCobertas`, `VagasDescobertas`, `Area`, `AreaUtil`, `AnoConstrucao`, `Condominio`, `Iptu`, `Descricao`, `Amenities`/`Item`, `Fotos`/`Item` (cada `<Item>` traz o atributo `principal="true"` na primeira posição/capa), `Foto` (mantido por compatibilidade, igual à primeira foto), `Latitude`, `Longitude`, `Status`, `AtualizadoEm`. **Importante:** este é um formato próprio, inspirado em convenções comuns de feeds do mercado imobiliário (o mesmo vocabulário de campos usado no cadastro de `POST /api/v1/parceiros/imoveis` abaixo) — não é uma cópia do schema proprietário de nenhum portal real.
 
 ### `GET /api/v1/parceiros/imoveis/:id`
-Detalhe de um imóvel pelo ID interno da Malb (não pela `referenciaExterna` do parceiro).
+Detalhe de um imóvel pelo ID interno da Malb (não pela `referenciaExterna` do parceiro). Traz o mesmo conjunto completo de campos descrito em `POST /api/imoveis` (bloco básico + características + localização + financeiro + fotos).
 
 ### `POST /api/v1/parceiros/imoveis`
-Importa (cria ou atualiza) um imóvel do parceiro no catálogo da Malb. Corpo: os mesmos campos de `POST /api/imoveis`, **mais** `referenciaExterna` (obrigatório — o ID do imóvel no sistema do parceiro).
+Importa (cria ou atualiza) um imóvel do parceiro no catálogo da Malb. Corpo: os mesmos campos de `POST /api/imoveis` (ver bloco completo — tipo/finalidade/preço/título/bairro/cidade obrigatórios; quartos/suites/banheiros/lavabos/vagas(Cobertas/Descobertas)/area/areaUtil/anoConstrucao/descricao/amenities/endereco/numero/complemento/cep/condominio/iptu/foto/fotos/lat/lng/status opcionais), **mais** `referenciaExterna` (obrigatório — o ID do imóvel no sistema do parceiro). Este é o endpoint pensado para uma integração como a do CRM Code 49: a cada novo imóvel ou atualização no CRM parceiro, ele faz `POST` aqui com o payload completo do imóvel e a própria `referenciaExterna` (o ID dele) para manter o catálogo da Malb sincronizado.
 
 A chave de upsert é `(parceiro_id, referenciaExterna)`: reenviar com a mesma `referenciaExterna` **atualiza** o imóvel existente (resposta `200`) em vez de criar um duplicado; uma referência nova **cria** (resposta `201`). Isso permite ao parceiro rodar uma sincronização periódica sem se preocupar em rastrear IDs internos da Malb.
 

@@ -205,6 +205,38 @@ garantirColuna('imoveis', 'referencia_externa', 'TEXT');
 // "imóvel próprio da Malb" — nada muda pros imóveis que já existem hoje.
 garantirColuna('imoveis', 'conta_id', 'INTEGER REFERENCES contas(id) ON DELETE SET NULL');
 
+// Fase 7.2 — cadastro completo de imóvel (autoatendimento do anunciante +
+// campos compatíveis com o que CRMs imobiliários parceiros (ex: Code49/
+// Infinity, e o padrão de mercado VRSync usado por ZAP/VivaReal) costumam
+// enviar). `area` continua sendo a área total, como já era; `area_util` é
+// nova. `vagas` continua sendo o total de vagas (mantido em sincronia com
+// vagas_cobertas + vagas_descobertas pelas rotas), preservando quem já
+// consumia esse campo (site público, cards, XML de parceiro).
+garantirColuna('imoveis', 'suites', 'INTEGER NOT NULL DEFAULT 0');
+garantirColuna('imoveis', 'lavabos', 'INTEGER NOT NULL DEFAULT 0');
+garantirColuna('imoveis', 'vagas_cobertas', 'INTEGER NOT NULL DEFAULT 0');
+garantirColuna('imoveis', 'vagas_descobertas', 'INTEGER NOT NULL DEFAULT 0');
+garantirColuna('imoveis', 'area_util', 'REAL NOT NULL DEFAULT 0');
+garantirColuna('imoveis', 'endereco', "TEXT NOT NULL DEFAULT ''");
+garantirColuna('imoveis', 'numero', "TEXT NOT NULL DEFAULT ''");
+garantirColuna('imoveis', 'complemento', "TEXT NOT NULL DEFAULT ''");
+garantirColuna('imoveis', 'cep', "TEXT NOT NULL DEFAULT ''");
+garantirColuna('imoveis', 'condominio', 'REAL NOT NULL DEFAULT 0');
+garantirColuna('imoveis', 'iptu', 'REAL NOT NULL DEFAULT 0');
+garantirColuna('imoveis', 'ano_construcao', 'INTEGER');
+// Múltiplas fotos (JSON array de URLs/data-URIs) — `foto` (coluna antiga,
+// uma só imagem) é mantida em sincronia com fotos[0] pelas rotas, pra não
+// quebrar nada que ainda lê só esse campo (cards do site, feed de parceiro).
+const fotosColunaNova = garantirColuna('imoveis', 'fotos', "TEXT NOT NULL DEFAULT '[]'");
+if (fotosColunaNova) {
+  // Backfill único: imóveis já cadastrados antes dessa coluna existir tinham
+  // só `foto` — copia pra dentro do array novo, pra não "sumir" a foto deles
+  // assim que a galeria de múltiplas fotos entrar no ar.
+  const semFotos = db.prepare("SELECT id, foto FROM imoveis WHERE foto != '' AND fotos = '[]'").all();
+  const upd = db.prepare('UPDATE imoveis SET fotos = ? WHERE id = ?');
+  for (const row of semFotos) upd.run(JSON.stringify([row.foto]), row.id);
+}
+
 // Fase 5 — CRM interno: papel/ativo em users (para distinguir admin de
 // corretor e permitir desativar acesso sem apagar histórico), e atribuição
 // de leads a um corretor. Bancos já existentes (Fases 2-4) tinham só um

@@ -41,10 +41,6 @@ function aplicarSeoBusca(estado) {
   if (estado.bairro) descricao += ` em ${estado.bairro}`;
   descricao += ' na Malb Imóveis. Filtre por preço, quartos e área e fale direto com o corretor.';
 
-  // Só bairro/tipo/finalidade entram no canonical — os demais filtros
-  // (preço, área, quartos, ordenação, busca livre) não geram uma URL
-  // "oficial" própria, pra não competir no índice do Google com variações
-  // quase idênticas da mesma busca.
   const params = new URLSearchParams();
   if (estado.finalidade) params.set('finalidade', estado.finalidade);
   if (estado.tipo) params.set('tipo', estado.tipo);
@@ -121,11 +117,6 @@ function clearToken() {
   try { localStorage.removeItem('malb_admin_token'); } catch {}
 }
 
-/* Fase 7 — login separado pros anunciantes (corretor autônomo ou imobiliária
-   que se cadastra pra anunciar no portal). Guardado numa chave diferente do
-   token do painel interno (malb_admin_token) — são duas contas/dois logins
-   completamente separados, uma pessoa pode até estar logada nos dois ao
-   mesmo tempo sem conflito. */
 function getContaToken() {
   try { return localStorage.getItem('malb_conta_token'); } catch { return null; }
 }
@@ -152,15 +143,6 @@ async function apiConta(path, { method = 'GET', body } = {}) {
   return data;
 }
 
-/* Estado de "carregando" num botão de formulário — usado em todo formulário
-   que chama a API (login, cadastro, checkout). No plano gratuito do Render
-   o servidor "dorme" depois de um tempo sem uso, então a primeira
-   requisição do dia pode demorar bem mais que o normal (até ~1 minuto) pra
-   responder; sem um aviso, essa demora parece a página ter travado. Uso:
-     const parar = iniciarCarregando(btn, 'Entrando…', 'hint-acordando');
-     try { ...chamada à api()... } finally { parar(); }
-   `hintId` é opcional: o id de um <p> escondido por padrão que aparece
-   depois de alguns segundos se a chamada ainda não voltou. */
 function iniciarCarregando(btn, textoCarregando, hintId) {
   const textoOriginal = btn.textContent;
   btn.disabled = true;
@@ -175,11 +157,6 @@ function iniciarCarregando(btn, textoCarregando, hintId) {
   };
 }
 
-/* Botão de mostrar/ocultar senha — usado no login e no cadastro de corretor
-   (aba Equipe). Basta envolver o <input type="password"> numa <div
-   class="campo-senha"> com um <button data-toggle-senha="id-do-input">
-   dentro; esta função liga o clique em todos os botões desse tipo achados
-   no escopo dado (chamar de novo é seguro, não liga duas vezes o mesmo). */
 const ICONE_OLHO = '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7-11-7-11-7z"/><circle cx="12" cy="12" r="3"/></svg>';
 const ICONE_OLHO_FECHADO = '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17.94 17.94A10.94 10.94 0 0 1 12 20C5 20 1 12 1 12a20.4 20.4 0 0 1 4.22-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a20.4 20.4 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></svg>';
 
@@ -200,8 +177,157 @@ function ligarTogglesSenha(escopo = document) {
   });
 }
 
-/* Favoritos: guardados só no navegador de quem está visitando (localStorage),
-   sem precisar de login. Cada visitante tem sua própria lista. */
+const AMENITY_GROUPS = [
+  {
+    categoria: 'Características do imóvel',
+    itens: [
+      { key: 'area_servico', label: 'Área de serviço', icone: 'lavanderia' },
+      { key: 'closet', label: 'Closet', icone: 'armario' },
+      { key: 'copa', label: 'Copa', icone: 'cozinha' },
+      { key: 'cozinha', label: 'Cozinha', icone: 'cozinha' },
+      { key: 'cozinha_americana', label: 'Cozinha americana', icone: 'cozinha' },
+      { key: 'dependencia_empregados', label: 'Dependência de empregados', icone: 'casa' },
+      { key: 'despensa', label: 'Despensa', icone: 'caixa' },
+      { key: 'escritorio', label: 'Escritório', icone: 'maleta' },
+      { key: 'lavabo', label: 'Lavabo', icone: 'banheira' },
+      { key: 'lavanderia', label: 'Lavanderia', icone: 'lavanderia' },
+      { key: 'lareira', label: 'Lareira', icone: 'fogo' },
+      { key: 'mezanino', label: 'Mezanino', icone: 'camadas' },
+      { key: 'sacada', label: 'Sacada', icone: 'varanda' },
+      { key: 'varanda', label: 'Varanda', icone: 'varanda' },
+      { key: 'terraco', label: 'Terraço', icone: 'varanda' },
+      { key: 'sala_estar', label: 'Sala de estar', icone: 'sofa' },
+      { key: 'sala_jantar', label: 'Sala de jantar', icone: 'cozinha' },
+      { key: 'sala_tv', label: 'Sala de TV', icone: 'tv' },
+      { key: 'suite', label: 'Suíte', icone: 'cama' },
+      { key: 'mobiliado', label: 'Mobiliado', icone: 'sofa' },
+    ],
+  },
+  {
+    categoria: 'Instalação e segurança',
+    itens: [
+      { key: 'ar_condicionado', label: 'Ar condicionado', icone: 'flocoNeve' },
+      { key: 'aquecimento_central', label: 'Aquecimento central', icone: 'fogo' },
+      { key: 'armario_embutido', label: 'Armário embutido', icone: 'armario' },
+      { key: 'armario_cozinha', label: 'Armário de cozinha', icone: 'armario' },
+      { key: 'portao_eletronico', label: 'Portão eletrônico', icone: 'portao' },
+      { key: 'portaria_24h', label: 'Portaria 24h', icone: 'escudo' },
+      { key: 'cameras', label: 'Câmeras de segurança', icone: 'camera' },
+      { key: 'sistema_alarme', label: 'Sistema de alarme', icone: 'escudo' },
+      { key: 'cerca_eletrica', label: 'Cerca elétrica', icone: 'escudo' },
+      { key: 'interfone', label: 'Interfone/telefone', icone: 'telefone' },
+      { key: 'elevador', label: 'Elevador', icone: 'elevador' },
+      { key: 'gerador', label: 'Gerador', icone: 'raio' },
+      { key: 'energia_solar', label: 'Aquecedor/energia solar', icone: 'sol' },
+      { key: 'internet', label: 'Internet/Wi-Fi', icone: 'wifi' },
+      { key: 'acesso_deficientes', label: 'Acesso para deficientes', icone: 'acessibilidade' },
+    ],
+  },
+  {
+    categoria: 'Acabamento',
+    itens: [
+      { key: 'porcelanato', label: 'Porcelanato', icone: 'ladrilho' },
+      { key: 'piso_madeira', label: 'Piso de madeira', icone: 'ladrilho' },
+      { key: 'piso_frio', label: 'Piso frio', icone: 'ladrilho' },
+      { key: 'granito', label: 'Granito', icone: 'ladrilho' },
+      { key: 'marmore', label: 'Mármore', icone: 'ladrilho' },
+      { key: 'decorado', label: 'Decorado', icone: 'estrela' },
+    ],
+  },
+  {
+    categoria: 'Lazer',
+    itens: [
+      { key: 'piscina', label: 'Piscina', icone: 'piscina' },
+      { key: 'churrasqueira', label: 'Churrasqueira', icone: 'churrasqueira' },
+      { key: 'espaco_gourmet', label: 'Espaço gourmet', icone: 'churrasqueira' },
+      { key: 'academia', label: 'Academia', icone: 'halteres' },
+      { key: 'salao_festas', label: 'Salão de festas', icone: 'festa' },
+      { key: 'salao_jogos', label: 'Salão de jogos', icone: 'festa' },
+      { key: 'playground', label: 'Playground', icone: 'playground' },
+      { key: 'quadra_poliesportiva', label: 'Quadra poliesportiva', icone: 'quadra' },
+      { key: 'sauna', label: 'Sauna', icone: 'vapor' },
+      { key: 'jardim', label: 'Jardim', icone: 'folha' },
+      { key: 'espaco_pet', label: 'Espaço pet', icone: 'pata' },
+      { key: 'vista_mar', label: 'Vista para o mar', icone: 'sol' },
+    ],
+  },
+];
+
+const AMENITY_INDEX = {};
+AMENITY_GROUPS.forEach((g) => g.itens.forEach((it) => { AMENITY_INDEX[it.key] = it; }));
+
+function amenityInfo(key) {
+  return AMENITY_INDEX[key] || { key, label: key, icone: null };
+}
+
+const ICONES_AMENITY = {
+  piscina: '<path d="M2 17c1.3-1 2.7-1 4 0s2.7 1 4 0 2.7-1 4 0 2.7 1 4 0M2 12c1.3-1 2.7-1 4 0s2.7 1 4 0 2.7-1 4 0 2.7 1 4 0M6 8V4M12 8V3M18 8v3"/>',
+  churrasqueira: '<path d="M12 2c1.5 2 1.5 3.5 0 5-1.2 1-1.2 2 0 3 2 1.5 2 3-.5 4.5M6 21c0-3.5 2.7-6 6-6s6 2.5 6 6"/>',
+  halteres: '<path d="M4 8v8M20 8v8M2 10v4M22 10v4M7 12h10"/>',
+  festa: '<path d="M4 21 12 3l8 18-8-4-8 4Z"/>',
+  playground: '<circle cx="12" cy="8" r="4"/><path d="M6 21c0-3.3 2.7-6 6-6s6 2.7 6 6"/>',
+  quadra: '<rect x="3" y="5" width="18" height="14" rx="1"/><path d="M12 5v14M3 12h18"/>',
+  vapor: '<path d="M6 21c-1-2 1-3 0-5M12 21c-1-2 1-3 0-5M18 21c-1-2 1-3 0-5"/><path d="M6 12c-1-2 1-3 0-5M12 12c-1-2 1-3 0-5M18 12c-1-2 1-3 0-5"/>',
+  folha: '<path d="M4 20c8 0 16-8 16-16-8 0-16 8-16 16Z"/><path d="M4 20c2-6 6-10 12-12"/>',
+  pata: '<circle cx="7" cy="8" r="1.6"/><circle cx="12" cy="6" r="1.6"/><circle cx="17" cy="8" r="1.6"/><path d="M8 15c-2-1-2-4.5 1-5.4 1.3-.4 2.7-.4 4 0 3 .9 3 4.4 1 5.4-1.3.6-1.7 1.8-1.7 3a2 2 0 0 1-4 0c0-1.2-.4-2.4-1.7-3Z"/>',
+  varanda: '<rect x="3" y="10" width="18" height="10" rx="1"/><path d="M3 14h18M7 10V6M12 10V4M17 10V6"/>',
+  elevador: '<rect x="6" y="2" width="12" height="20" rx="1"/><path d="m10 9 2-2 2 2M10 15l2 2 2-2"/>',
+  escudo: '<path d="M12 3 4 6v6c0 5 3.5 8 8 9 4.5-1 8-4 8-9V6l-8-3Z"/>',
+  camera: '<rect x="2" y="7" width="14" height="11" rx="2"/><path d="M16 10l6-3v10l-6-3Z"/><circle cx="9" cy="12.5" r="2.5"/>',
+  telefone: '<path d="M5 4h4l2 5-2.5 1.5a11 11 0 0 0 5 5L15 13l5 2v4a2 2 0 0 1-2 2C10 21 3 14 3 6a2 2 0 0 1 2-2Z"/>',
+  portao: '<rect x="3" y="6" width="18" height="14" rx="1"/><path d="M3 6l18 14M21 6 3 20M3 13h18"/>',
+  raio: '<path d="M13 2 4 14h6l-1 8 9-12h-6l1-8Z"/>',
+  sol: '<circle cx="12" cy="12" r="4"/><path d="M12 2v3M12 19v3M4.2 4.2l2 2M17.8 17.8l2 2M2 12h3M19 12h3M4.2 19.8l2-2M17.8 6.2l2-2"/>',
+  wifi: '<path d="M2 8.5a16 16 0 0 1 20 0M5.5 12.2a11 11 0 0 1 13 0M9 15.8a6 6 0 0 1 6 0"/><circle cx="12" cy="19" r="1.2" fill="currentColor" stroke="none"/>',
+  acessibilidade: '<circle cx="12" cy="4" r="1.8"/><path d="M12 8v6M8 10h8M12 14l-4 7M12 14l4 7"/>',
+  flocoNeve: '<path d="M12 2v20M4.5 6.5l15 11M19.5 6.5l-15 11M6 4l1.5 3M18 4l-1.5 3M6 20l1.5-3M18 20l-1.5-3M2.5 9.5l3 1M2.5 14.5l3-1M21.5 9.5l-3 1M21.5 14.5l-3-1"/>',
+  ladrilho: '<rect x="3" y="3" width="8" height="8" rx="1"/><rect x="13" y="3" width="8" height="8" rx="1"/><rect x="3" y="13" width="8" height="8" rx="1"/><rect x="13" y="13" width="8" height="8" rx="1"/>',
+  estrela: '<path d="m12 2 3 6.5 7 .9-5.2 5 1.3 7-6.1-3.4L5.9 21.4l1.3-7-5.2-5 7-.9L12 2Z"/>',
+  armario: '<rect x="4" y="2" width="16" height="20" rx="1"/><path d="M12 2v20M8 12h.01M16 12h.01"/>',
+  cozinha: '<path d="M4 3v18M4 3h3v6a3 3 0 0 1-3 3M11 3v18M17 3a4 4 0 0 0-4 4v3h4M15 10v11"/>',
+  banheira: '<path d="M3 12h18v2a5 5 0 0 1-5 5H8a5 5 0 0 1-5-5v-2Z"/><path d="M5 12V7a2 2 0 0 1 2-2h1M4 21h16"/>',
+  fogo: '<path d="M12 2c1.5 3 4 4.5 4 8a4 4 0 1 1-8 0c0-1 .4-1.8 1-2.5C9.5 9 10 10 10 11c0-3 .5-6 2-9Z"/>',
+  camadas: '<path d="m12 3 9 5-9 5-9-5 9-5Z"/><path d="m3 13 9 5 9-5"/>',
+  sofa: '<path d="M4 12V8a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v4M3 12h18v5a1 1 0 0 1-1 1h-1v2h-2v-2H6v2H4v-2H3a1 1 0 0 1-1-1v-5Z"/>',
+  tv: '<rect x="2" y="4" width="20" height="13" rx="1"/><path d="M9 21h6M12 17v4"/>',
+  cama: '<path d="M2 19v-7a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v7M2 19v2M22 19v2M2 14h20"/><path d="M5 10V8a2 2 0 0 1 2-2h3a2 2 0 0 1 2 2v2"/>',
+  caixa: '<path d="M21 8 12 3 3 8l9 5 9-5Z"/><path d="M3 8v9l9 5 9-5V8M12 13v9"/>',
+  maleta: '<rect x="2" y="7" width="20" height="13" rx="2"/><path d="M8 7V5a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2M2 13h20"/>',
+  lavanderia: '<rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="12" cy="13" r="5"/><circle cx="7" cy="6.5" r=".8" fill="currentColor" stroke="none"/><circle cx="10" cy="6.5" r=".8" fill="currentColor" stroke="none"/>',
+  casa: '<path d="m3 11 9-8 9 8"/><path d="M5 10v10h14V10"/>',
+};
+const ICONE_GENERICO = '<path d="M9 12.5 11.2 15 16 9"/><circle cx="12" cy="12" r="10"/>';
+
+function amenityIconSvg(icone) {
+  const miolo = (icone && ICONES_AMENITY[icone]) || ICONE_GENERICO;
+  return `<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">${miolo}</svg>`;
+}
+
+function amenityBadgesHTML(amenities) {
+  return (amenities || []).map((key) => {
+    const info = amenityInfo(key);
+    return `<span class="amenity">${amenityIconSvg(info.icone)}<span>${info.label}</span></span>`;
+  }).join('');
+}
+
+function amenityCheckboxesHTML(selecionados = []) {
+  const marcado = new Set(selecionados);
+  return AMENITY_GROUPS.map((g) => `
+    <div class="amenity-grupo">
+      <div class="amenity-grupo-titulo">${g.categoria}</div>
+      <div class="amenity-grid">
+        ${g.itens.map((it) => `
+          <label class="amenity-check">
+            <input type="checkbox" value="${it.key}" ${marcado.has(it.key) ? 'checked' : ''}>
+            ${amenityIconSvg(it.icone)}
+            <span>${it.label}</span>
+          </label>
+        `).join('')}
+      </div>
+    </div>
+  `).join('');
+}
+
 const FAVORITOS_KEY = 'malb_favoritos';
 
 function getFavoritos() {
@@ -216,7 +342,7 @@ function toggleFavorito(id) {
   const era = favs.includes(id);
   favs = era ? favs.filter(f => f !== id) : [...favs, id];
   try { localStorage.setItem(FAVORITOS_KEY, JSON.stringify(favs)); } catch {}
-  return !era; // retorna o novo estado (true = favoritado agora)
+  return !era;
 }
 
 async function api(path, { method = 'GET', body, auth = false } = {}) {
@@ -243,13 +369,10 @@ async function api(path, { method = 'GET', body, auth = false } = {}) {
 }
 
 function thumbHTML(im) {
-  // Alt text descritivo (tipo + bairro + finalidade) em vez de um texto
-  // genérico — ajuda a indexação no Google Imagens, que é uma fonte real
-  // de tráfego para fotos de imóveis, e também a acessibilidade (leitores
-  // de tela descrevem o imóvel, não só "foto ilustrativa").
   const verbo = im.finalidade === 'aluguel' ? 'para alugar' : 'à venda';
   const alt = `${im.tipo} ${verbo} em ${im.bairro}, ${im.cidade} — Malb Imóveis`;
-  if (im.foto) return `<img src="${im.foto}" alt="${alt.replace(/"/g, '&quot;')}" loading="lazy">`;
+  const capa = im.foto || (im.fotos && im.fotos[0]) || '';
+  if (capa) return `<img src="${capa}" alt="${alt.replace(/"/g, '&quot;')}" loading="lazy">`;
   return `<div style="width:100%;height:100%;display:flex;align-items:center;justify-content:center;color:var(--ink-faint);font-size:.8rem;">sem foto</div>`;
 }
 
@@ -294,6 +417,96 @@ function cardHTML(im) {
       </div>
     </div>
   </a>`;
+}
+
+function redimensionarImagem(file, maxLado = 1600, qualidade = 0.82) {
+  return new Promise((resolve, reject) => {
+    const leitor = new FileReader();
+    leitor.onerror = () => reject(new Error('Não foi possível ler o arquivo'));
+    leitor.onload = () => {
+      const img = new Image();
+      img.onerror = () => reject(new Error('Arquivo não é uma imagem válida'));
+      img.onload = () => {
+        let { width, height } = img;
+        if (width > maxLado || height > maxLado) {
+          if (width >= height) { height = Math.round(height * (maxLado / width)); width = maxLado; }
+          else { width = Math.round(width * (maxLado / height)); height = maxLado; }
+        }
+        const canvas = document.createElement('canvas');
+        canvas.width = width; canvas.height = height;
+        const ctx = canvas.getContext('2d');
+        ctx.drawImage(img, 0, 0, width, height);
+        resolve(canvas.toDataURL('image/jpeg', qualidade));
+      };
+      img.src = leitor.result;
+    };
+    leitor.readAsDataURL(file);
+  });
+}
+
+function galeriaHTML(fotos) {
+  if (!fotos || !fotos.length) return '';
+  return `<div class="galeria-tira">
+    ${fotos.map((url, i) => `<button type="button" class="galeria-thumb" data-galeria-idx="${i}"><img src="${url}" alt="Foto ${i + 1} do imóvel" loading="lazy"></button>`).join('')}
+  </div>`;
+}
+
+function ligarGaleria(container, fotos) {
+  if (!fotos || !fotos.length) return;
+  container.querySelectorAll('[data-galeria-idx]').forEach((btn) => {
+    btn.addEventListener('click', () => abrirLightbox(fotos, Number(btn.dataset.galeriaIdx)));
+  });
+}
+
+function abrirLightbox(fotos, indiceInicial = 0) {
+  let overlay = document.getElementById('lightbox-overlay');
+  if (!overlay) {
+    overlay = document.createElement('div');
+    overlay.id = 'lightbox-overlay';
+    overlay.className = 'lightbox-overlay';
+    overlay.innerHTML = `
+      <button type="button" class="lightbox-fechar" aria-label="Fechar">&times;</button>
+      <button type="button" class="lightbox-nav lightbox-prev" aria-label="Foto anterior">&#10094;</button>
+      <img class="lightbox-img" src="" alt="Foto do imóvel em tamanho maior">
+      <button type="button" class="lightbox-nav lightbox-next" aria-label="Próxima foto">&#10095;</button>
+      <div class="lightbox-contador"></div>
+    `;
+    document.body.appendChild(overlay);
+    overlay.addEventListener('click', (e) => { if (e.target === overlay) fecharLightbox(); });
+    overlay.querySelector('.lightbox-fechar').addEventListener('click', fecharLightbox);
+    overlay.querySelector('.lightbox-prev').addEventListener('click', () => navegarLightbox(-1));
+    overlay.querySelector('.lightbox-next').addEventListener('click', () => navegarLightbox(1));
+    document.addEventListener('keydown', (e) => {
+      if (!overlay.classList.contains('show')) return;
+      if (e.key === 'Escape') fecharLightbox();
+      if (e.key === 'ArrowLeft') navegarLightbox(-1);
+      if (e.key === 'ArrowRight') navegarLightbox(1);
+    });
+  }
+  overlay._fotos = fotos;
+  overlay._indice = indiceInicial;
+  atualizarLightbox();
+  overlay.classList.add('show');
+}
+function atualizarLightbox() {
+  const overlay = document.getElementById('lightbox-overlay');
+  if (!overlay) return;
+  const { _fotos: fotos, _indice: i } = overlay;
+  overlay.querySelector('.lightbox-img').src = fotos[i];
+  overlay.querySelector('.lightbox-contador').textContent = `${i + 1} / ${fotos.length}`;
+  overlay.querySelector('.lightbox-prev').style.display = fotos.length > 1 ? '' : 'none';
+  overlay.querySelector('.lightbox-next').style.display = fotos.length > 1 ? '' : 'none';
+}
+function navegarLightbox(delta) {
+  const overlay = document.getElementById('lightbox-overlay');
+  if (!overlay) return;
+  const n = overlay._fotos.length;
+  overlay._indice = (overlay._indice + delta + n) % n;
+  atualizarLightbox();
+}
+function fecharLightbox() {
+  const overlay = document.getElementById('lightbox-overlay');
+  if (overlay) overlay.classList.remove('show');
 }
 
 function showToast(msg, ms = 2600) {

@@ -46,13 +46,16 @@ async function carregar() {
     aplicarSeoImovel(im);
     const per = im.finalidade === 'aluguel' ? '<span style="font-size:.8rem;font-weight:500;color:var(--ink-faint);">/mês</span>' : '';
     const iniciais = (im.bairro || '?').slice(0, 2).toUpperCase();
+    const fotos = (im.fotos && im.fotos.length) ? im.fotos : (im.foto ? [im.foto] : []);
+    const enderecoCompleto = [im.endereco, im.numero].filter(Boolean).join(', ') + (im.complemento ? ` — ${im.complemento}` : '');
 
     document.getElementById('conteudo').innerHTML = `
       <a href="busca.html" class="btn btn-ghost" style="margin:1.4rem 0;">&larr; Voltar</a>
-      <div class="detail-hero">
-        ${im.foto ? `<img src="${im.foto}" alt="${(im.tipo + ' ' + (im.finalidade === 'aluguel' ? 'para alugar' : 'à venda') + ' em ' + im.bairro + ', ' + im.cidade + ' — ' + im.titulo).replace(/"/g, '&quot;')}">` : ''}
+      <div class="detail-hero" id="detail-hero-clicavel">
+        ${fotos[0] ? `<img src="${fotos[0]}" alt="${(im.tipo + ' ' + (im.finalidade === 'aluguel' ? 'para alugar' : 'à venda') + ' em ' + im.bairro + ', ' + im.cidade + ' — ' + im.titulo).replace(/"/g, '&quot;')}">` : ''}
         <button type="button" class="fav-btn large" id="fav-detalhe" style="position:absolute;margin:.7rem;" aria-label="Favoritar"></button>
       </div>
+      ${fotos.length > 1 ? galeriaHTML(fotos) : ''}
 
       <div class="detail-layout">
         <div>
@@ -60,21 +63,22 @@ async function carregar() {
             <h1 style="font-size:1.7rem;">${im.titulo}</h1>
             <span class="badge ${im.finalidade}" style="position:static;display:inline-block;">${im.finalidade === 'venda' ? 'Venda' : 'Aluguel'}</span>
           </div>
-          <p style="color:var(--ink-faint);margin:.4rem 0 1rem;">${im.bairro}, ${im.cidade}</p>
-          <div class="price" style="font-size:1.8rem;font-weight:700;">${fmtPreco(im.preco, im.finalidade)}${per}</div>
+          <p style="color:var(--ink-faint);margin:.4rem 0 .2rem;">${enderecoCompleto ? enderecoCompleto + ' — ' : ''}${im.bairro}, ${im.cidade}${im.cep ? ' · CEP ' + im.cep : ''}</p>
+          <div class="price" style="font-size:1.8rem;font-weight:700;margin-top:.6rem;">${fmtPreco(im.preco, im.finalidade)}${per}</div>
+          ${(im.condominio || im.iptu) ? `<p style="color:var(--ink-faint);font-size:.85rem;margin:.3rem 0 0;">${im.condominio ? 'Condomínio: R$ ' + Number(im.condominio).toLocaleString('pt-BR') : ''}${im.condominio && im.iptu ? ' · ' : ''}${im.iptu ? 'IPTU: R$ ' + Number(im.iptu).toLocaleString('pt-BR') + '/ano' : ''}</p>` : ''}
 
           <div class="feature-grid">
-            <div class="feature-tile"><div class="num">${im.quartos}</div><div class="label">Quartos</div></div>
+            <div class="feature-tile"><div class="num">${im.quartos}</div><div class="label">Quartos${im.suites ? ' (' + im.suites + ' suíte' + (im.suites === 1 ? '' : 's') + ')' : ''}</div></div>
             <div class="feature-tile"><div class="num">${im.banheiros}</div><div class="label">Banheiros</div></div>
             <div class="feature-tile"><div class="num">${im.vagas}</div><div class="label">Vagas</div></div>
-            <div class="feature-tile"><div class="num">${im.area}m²</div><div class="label">Área</div></div>
+            <div class="feature-tile"><div class="num">${im.area}m²</div><div class="label">${im.areaUtil ? 'Área total' : 'Área'}</div></div>
           </div>
 
           <p>${im.descricao || ''}</p>
 
           ${im.amenities && im.amenities.length ? `
             <h3 style="font-size:1.1rem;margin-top:1.6rem;">Comodidades</h3>
-            <div class="amenity-list">${im.amenities.map(a => `<span class="amenity">${a}</span>`).join('')}</div>
+            <div class="amenity-list">${amenityBadgesHTML(im.amenities)}</div>
           ` : ''}
 
           <h3 style="font-size:1.1rem;margin-top:1.6rem;">Localização</h3>
@@ -101,6 +105,14 @@ async function carregar() {
       </div>
     `;
 
+    if (fotos.length) {
+      document.getElementById('detail-hero-clicavel').addEventListener('click', (e) => {
+        if (e.target.closest('#fav-detalhe')) return;
+        abrirLightbox(fotos, 0);
+      });
+      ligarGaleria(document.getElementById('conteudo'), fotos);
+    }
+
     const favBtn = document.getElementById('fav-detalhe');
     const atualizarFav = () => {
       const ativo = isFavorito(im.id);
@@ -124,7 +136,6 @@ async function carregar() {
           document.getElementById('mapa').innerHTML = '<div class="sem-mapa">Não foi possível carregar o mapa.</div>';
         }
       } else {
-        // biblioteca do mapa (carregada de um CDN) não chegou a tempo ou a conexão bloqueou o CDN
         document.getElementById('mapa').innerHTML = '<div class="sem-mapa">Mapa indisponível no momento (verifique sua conexão).</div>';
       }
     }

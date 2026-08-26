@@ -81,12 +81,25 @@ components:
         bairro: { type: string, example: Centro }
         cidade: { type: string, example: "Porto Alegre" }
         quartos: { type: integer, example: 2 }
+        suites: { type: integer, example: 1, description: "Quantos dos quartos são suíte" }
         banheiros: { type: integer, example: 1 }
-        vagas: { type: integer, example: 1 }
-        area: { type: number, example: 65 }
+        lavabos: { type: integer, example: 0 }
+        vagas: { type: integer, example: 1, description: "Total de vagas (soma de vagasCobertas + vagasDescobertas quando essas forem enviadas)" }
+        vagasCobertas: { type: integer, example: 1 }
+        vagasDescobertas: { type: integer, example: 0 }
+        area: { type: number, example: 65, description: "Área total/construída (m²)" }
+        areaUtil: { type: number, example: 58, description: "Área útil/privativa (m²), opcional" }
+        anoConstrucao: { type: integer, nullable: true, example: 2015 }
         descricao: { type: string }
-        amenities: { type: array, items: { type: string }, example: ["piscina", "academia"] }
-        foto: { type: string, format: uri }
+        amenities: { type: array, items: { type: string }, example: ["piscina", "churrasqueira", "academia"], description: "Chaves livres do catálogo de comodidades (ver amenityInfo no frontend) — categorizadas em Característica do imóvel, Instalação, Acabamento e Lazer" }
+        foto: { type: string, format: uri, description: "Foto de capa (primeira de `fotos`, mantida por compatibilidade)" }
+        fotos: { type: array, items: { type: string, format: uri }, description: "Galeria completa do imóvel; a primeira posição é a foto de capa" }
+        endereco: { type: string, example: "Rua das Flores" }
+        numero: { type: string, example: "123" }
+        complemento: { type: string, example: "Apto 42" }
+        cep: { type: string, example: "90000-000" }
+        condominio: { type: number, example: 350, description: "Valor mensal do condomínio (R$), 0 quando não se aplica" }
+        iptu: { type: number, example: 1200, description: "Valor anual do IPTU (R$), 0 quando não se aplica" }
         lat: { type: number, nullable: true, example: -30.0346 }
         lng: { type: number, nullable: true, example: -51.2177 }
         status: { type: string, enum: [disponivel, reservado, vendido, alugado] }
@@ -107,12 +120,25 @@ components:
         bairro: { type: string }
         cidade: { type: string }
         quartos: { type: integer }
+        suites: { type: integer }
         banheiros: { type: integer }
-        vagas: { type: integer }
+        lavabos: { type: integer }
+        vagas: { type: integer, description: "Use vagasCobertas/vagasDescobertas para detalhar; se enviado sozinho, vale como total" }
+        vagasCobertas: { type: integer }
+        vagasDescobertas: { type: integer }
         area: { type: number }
+        areaUtil: { type: number }
+        anoConstrucao: { type: integer, nullable: true }
         descricao: { type: string }
         amenities: { type: array, items: { type: string } }
-        foto: { type: string, format: uri }
+        foto: { type: string, format: uri, description: "Opcional — se omitido, usa a primeira posição de `fotos`" }
+        fotos: { type: array, items: { type: string, format: uri } }
+        endereco: { type: string }
+        numero: { type: string }
+        complemento: { type: string }
+        cep: { type: string }
+        condominio: { type: number }
+        iptu: { type: number }
         lat: { type: number, nullable: true }
         lng: { type: number, nullable: true }
         status: { type: string, enum: [disponivel, reservado, vendido, alugado], default: disponivel }

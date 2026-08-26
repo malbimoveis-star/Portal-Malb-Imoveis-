@@ -19,7 +19,7 @@
 
 const crypto = require('node:crypto');
 const { db, hashPassword } = require('../db');
-const { rowToImovel } = require('./imoveis');
+const { rowToImovel, validarPayload, normalizarComposicao } = require('./imoveis');
 
 const SESSION_TTL_MS = 1000 * 60 * 60 * 24 * 7; // 7 dias, igual ao login do painel interno
 
@@ -159,6 +159,100 @@ function registerContasRoutes(router) {
     if (!conta) return res.json(401, { error: 'Autenticação necessária' });
     const rows = db.prepare('SELECT * FROM imoveis WHERE conta_id = ? ORDER BY created_at DESC').all(conta.id);
     res.json(200, { data: rows.map(rowToImovel), total: rows.length });
+  });
+
+  // Fase 7.2 — autoatendimento: o próprio anunciante cadastra, edita e exclui
+  // os imóveis dele direto pelo painel (antes só o CRM interno da Malb
+  // cadastrava, com contaId opcional). Mesma validação (validarPayload) e
+  // mesma composição de campos (normalizarComposicao) das rotas /api/imoveis
+  // — só muda quem pode chamar e a trava de limite do plano.
+  function contarImoveisDaConta(contaId) {
+    return db.prepare('SELECT COUNT(*) AS total FROM imoveis WHERE conta_id = ?').get(contaId).total;
+  }
+
+  router.post('/api/contas/me/imoveis', (req, res, params, query, body, user, token) => {
+    const conta = getContaFromToken(token);
+    if (!conta) return res.json(401, { error: 'Autenticação necessária' });
+
+    if (conta.status_assinatura !== 'ativa') {
+      return res.json(403, { error: 'Você precisa de um plano ativo para cadastrar imóveis. Escolha um plano em /planos.html.' });
+    }
+    const plano = conta.plano_id ? db.prepare('SELECT * FROM planos WHERE id = ?').get(conta.plano_id) : null;
+    if (plano && plano.limite_anuncios != null && contarImoveisDaConta(conta.id) >= plano.limite_anuncios) {
+      return res.json(403, { error: `Seu plano (${plano.nome}) permite até ${plano.limite_anuncios} imóveis anunciados. Você já atingiu esse limite — mude de plano em /planos.html para cadastrar mais.` });
+    }
+
+    const erros = validarPayload(body);
+    if (erros.length) return res.json(400, { error: 'Payload inválido', detalhes: erros });
+
+    const comp = normalizarComposicao(body, null);
+    const info = db.prepare(`
+      INSERT INTO imoveis (
+        tipo, finalidade, preco, titulo, endereco, numero, complemento, cep, bairro, cidade,
+        quartos, suites, banheiros, lavabos, vagas, vagas_cobertas, vagas_descobertas,
+        area, area_util, condominio, iptu, ano_construcao,
+        descricao, amenities, foto, fotos, lat, lng, status, conta_id
+      )
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `).run(
+      body.tipo, body.finalidade, Number(body.preco), body.titulo,
+      body.endereco || '', body.numero || '', body.complemento || '', body.cep || '',
+      body.bairro, body.cidade,
+      Number(body.quartos || 0), Number(body.suites || 0), Number(body.banheiros || 0), Number(body.lavabos || 0),
+      comp.vagas, comp.vagasCobertas, comp.vagasDescobertas,
+      Number(body.area || 0), Number(body.areaUtil || 0), Number(body.condominio || 0), Number(body.iptu || 0),
+      body.anoConstrucao != null && body.anoConstrucao !== '' ? Number(body.anoConstrucao) : null,
+      body.descricao || '', JSON.stringify(body.amenities || []), comp.foto, JSON.stringify(comp.fotos),
+      body.lat != null && body.lat !== '' ? Number(body.lat) : null,
+      body.lng != null && body.lng !== '' ? Number(body.lng) : null,
+      body.status || 'disponivel', conta.id
+    );
+    const row = db.prepare('SELECT * FROM imoveis WHERE id = ?').get(info.lastInsertRowid);
+    res.json(201, { data: rowToImovel(row) });
+  });
+
+  router.put('/api/contas/me/imoveis/:id', (req, res, params, query, body, user, token) => {
+    const conta = getContaFromToken(token);
+    if (!conta) return res.json(401, { error: 'Autenticação necessária' });
+
+    const existing = db.prepare('SELECT * FROM imoveis WHERE id = ?').get(Number(params.id));
+    if (!existing || existing.conta_id !== conta.id) return res.json(404, { error: 'Imóvel não encontrado' });
+
+    const merged = { ...rowToImovel(existing), ...body };
+    const erros = validarPayload(merged);
+    if (erros.length) return res.json(400, { error: 'Payload inválido', detalhes: erros });
+
+    const comp = normalizarComposicao(body, rowToImovel(existing));
+    db.prepare(`
+      UPDATE imoveis SET
+        tipo=?, finalidade=?, preco=?, titulo=?, endereco=?, numero=?, complemento=?, cep=?, bairro=?, cidade=?,
+        quartos=?, suites=?, banheiros=?, lavabos=?, vagas=?, vagas_cobertas=?, vagas_descobertas=?,
+        area=?, area_util=?, condominio=?, iptu=?, ano_construcao=?,
+        descricao=?, amenities=?, foto=?, fotos=?, lat=?, lng=?, status=?, updated_at=datetime('now')
+      WHERE id = ? AND conta_id = ?
+    `).run(
+      merged.tipo, merged.finalidade, Number(merged.preco), merged.titulo,
+      merged.endereco || '', merged.numero || '', merged.complemento || '', merged.cep || '',
+      merged.bairro, merged.cidade,
+      Number(merged.quartos || 0), Number(merged.suites || 0), Number(merged.banheiros || 0), Number(merged.lavabos || 0),
+      comp.vagas, comp.vagasCobertas, comp.vagasDescobertas,
+      Number(merged.area || 0), Number(merged.areaUtil || 0), Number(merged.condominio || 0), Number(merged.iptu || 0),
+      merged.anoConstrucao != null && merged.anoConstrucao !== '' ? Number(merged.anoConstrucao) : null,
+      merged.descricao || '', JSON.stringify(merged.amenities || []), comp.foto, JSON.stringify(comp.fotos),
+      merged.lat != null && merged.lat !== '' ? Number(merged.lat) : null,
+      merged.lng != null && merged.lng !== '' ? Number(merged.lng) : null,
+      merged.status || 'disponivel', Number(params.id), conta.id
+    );
+    const row = db.prepare('SELECT * FROM imoveis WHERE id = ?').get(Number(params.id));
+    res.json(200, { data: rowToImovel(row) });
+  });
+
+  router.delete('/api/contas/me/imoveis/:id', (req, res, params, query, body, user, token) => {
+    const conta = getContaFromToken(token);
+    if (!conta) return res.json(401, { error: 'Autenticação necessária' });
+    const info = db.prepare('DELETE FROM imoveis WHERE id = ? AND conta_id = ?').run(Number(params.id), conta.id);
+    if (info.changes === 0) return res.json(404, { error: 'Imóvel não encontrado' });
+    res.json(204, null);
   });
 
   // Estatísticas básicas do anunciante: quantos imóveis tem (e em que

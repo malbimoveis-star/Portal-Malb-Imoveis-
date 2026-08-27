@@ -135,11 +135,11 @@
           </div>
         </div>
         <div class="field span2">
-          <label>Foto</label>
-          <input type="file" id="f-foto-arquivo" accept="image/*">
-          <p style="color:var(--ink-faint);font-size:.78rem;margin:.35rem 0 0;">Escolha uma foto do seu computador ou celular (a imagem é redimensionada automaticamente).</p>
-          <div id="f-foto-preview"></div>
-          <input type="hidden" id="f-foto">
+          <label>Fotos</label>
+          <input type="file" id="f-foto-arquivo" accept="image/*" multiple>
+          <p style="color:var(--ink-faint);font-size:.78rem;margin:.35rem 0 0;">Escolha uma ou mais fotos do seu computador ou celular (até 50 fotos por imóvel; cada imagem é redimensionada automaticamente). A primeira foto da lista vira a capa do anúncio.</p>
+          <div id="f-fotos-contador" style="color:var(--ink-faint);font-size:.78rem;margin-top:.35rem;"></div>
+          <div id="f-foto-preview" class="fotos-grid"></div>
         </div>
       </div>
       <div style="display:flex;gap:.6rem;justify-content:flex-end;margin-top:.6rem;">
@@ -292,28 +292,38 @@ function abrirModal(id) {
         cb.checked = amenitiesSet.has(cb.value);
       });
       document.getElementById('f-comodidades-extra').value = (im.amenities || []).filter(a => !COMODIDADES_TODAS.includes(a)).join(', ');
-      document.getElementById('f-foto').value = im.foto || '';
-      atualizarPreviewFoto(im.foto || '');
+      fotosAtuais = (im.fotos && im.fotos.length) ? [...im.fotos] : (im.foto ? [im.foto] : []);
+      renderFotosPreview();
     }
   } else {
-    atualizarPreviewFoto('');
+    fotosAtuais = [];
+    renderFotosPreview();
   }
   document.getElementById('modal-backdrop').classList.add('show');
 }
 function fecharModal() { document.getElementById('modal-backdrop').classList.remove('show'); }
 
-function atualizarPreviewFoto(url) {
+/* Fase 7.2 — galeria de fotos: acumula em vez de trocar. `fotosAtuais` é o
+   estado em memória da galeria sendo editada; só vira `fotos` no payload
+   na hora de salvar. A primeira foto da lista é sempre a capa. */
+let fotosAtuais = [];
+const MAX_FOTOS = 50;
+
+function renderFotosPreview() {
   const preview = document.getElementById('f-foto-preview');
-  if (!url) { preview.innerHTML = ''; return; }
-  preview.innerHTML = `
-    <div style="display:flex;align-items:center;gap:.6rem;margin-top:.5rem;">
-      <img src="${url}" style="width:90px;height:64px;object-fit:cover;border-radius:6px;border:1px solid var(--border);">
-      <button type="button" class="btn btn-ghost" id="btn-remover-foto">Remover foto</button>
-    </div>`;
-  document.getElementById('btn-remover-foto').addEventListener('click', () => {
-    document.getElementById('f-foto').value = '';
-    document.getElementById('f-foto-arquivo').value = '';
-    atualizarPreviewFoto('');
+  document.getElementById('f-fotos-contador').textContent = `${fotosAtuais.length}/${MAX_FOTOS} fotos`;
+  preview.innerHTML = fotosAtuais.map((url, i) => `
+    <div class="foto-thumb">
+      <img src="${url}">
+      ${i === 0 ? '<span class="foto-thumb-capa">Capa</span>' : ''}
+      <button type="button" class="foto-thumb-remover" data-remover-foto="${i}" title="Remover foto">×</button>
+    </div>
+  `).join('');
+  preview.querySelectorAll('[data-remover-foto]').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      fotosAtuais.splice(Number(btn.dataset.removerFoto), 1);
+      renderFotosPreview();
+    });
   });
 }
 
@@ -347,16 +357,28 @@ function lerImagemComprimida(file, maxLado = 1600, qualidade = 0.82) {
 }
 
 document.getElementById('f-foto-arquivo').addEventListener('change', async (e) => {
-  const file = e.target.files[0];
-  if (!file) return;
-  try {
-    const dataUrl = await lerImagemComprimida(file);
-    document.getElementById('f-foto').value = dataUrl;
-    atualizarPreviewFoto(dataUrl);
-  } catch (err) {
-    showToast('Erro ao processar imagem: ' + err.message);
-    e.target.value = '';
+  const files = Array.from(e.target.files || []);
+  e.target.value = ''; // limpa o input pra poder escolher o mesmo arquivo de novo depois, se quiser
+  if (!files.length) return;
+
+  const vagas = MAX_FOTOS - fotosAtuais.length;
+  if (vagas <= 0) {
+    showToast(`Limite de ${MAX_FOTOS} fotos por imóvel atingido.`);
+    return;
   }
+  const aProcessar = files.slice(0, vagas);
+  if (files.length > vagas) {
+    showToast(`Só cabem mais ${vagas} foto${vagas === 1 ? '' : 's'} (limite de ${MAX_FOTOS} por imóvel). As demais foram ignoradas.`);
+  }
+  for (const file of aProcessar) {
+    try {
+      const dataUrl = await lerImagemComprimida(file);
+      fotosAtuais.push(dataUrl);
+    } catch (err) {
+      showToast('Erro ao processar imagem: ' + err.message);
+    }
+  }
+  renderFotosPreview();
 });
 
 document.getElementById('btn-novo-imovel').addEventListener('click', () => abrirModal(null));
@@ -383,7 +405,7 @@ document.getElementById('form-imovel').addEventListener('submit', async (e) => {
       ...Array.from(document.querySelectorAll('#comodidades-lista input[type=checkbox]:checked')).map(cb => cb.value),
       ...document.getElementById('f-comodidades-extra').value.split(',').map(s => s.trim()).filter(Boolean),
     ],
-    foto: document.getElementById('f-foto').value.trim(),
+    fotos: fotosAtuais,
   };
 
   const btn = document.getElementById('btn-salvar');

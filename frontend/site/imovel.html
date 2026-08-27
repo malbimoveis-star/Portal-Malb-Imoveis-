@@ -47,12 +47,22 @@ async function carregar() {
     const per = im.finalidade === 'aluguel' ? '<span style="font-size:.8rem;font-weight:500;color:var(--ink-faint);">/mês</span>' : '';
     const iniciais = (im.bairro || '?').slice(0, 2).toUpperCase();
 
+    const altFoto = (im.tipo + ' ' + (im.finalidade === 'aluguel' ? 'para alugar' : 'à venda') + ' em ' + im.bairro + ', ' + im.cidade + ' — ' + im.titulo).replace(/"/g, '&quot;');
+    // Fase 7.2 — galeria: `fotos` (array) é o que existe de verdade; `foto`
+    // (capa) continua como fallback pra imóveis antigos que só tinham uma.
+    const galeria = (im.fotos && im.fotos.length) ? im.fotos : (im.foto ? [im.foto] : []);
+
     document.getElementById('conteudo').innerHTML = `
       <a href="busca.html" class="btn btn-ghost" style="margin:1.4rem 0;">&larr; Voltar</a>
       <div class="detail-hero">
-        ${im.foto ? `<img src="${im.foto}" alt="${(im.tipo + ' ' + (im.finalidade === 'aluguel' ? 'para alugar' : 'à venda') + ' em ' + im.bairro + ', ' + im.cidade + ' — ' + im.titulo).replace(/"/g, '&quot;')}">` : ''}
+        ${galeria.length ? `<img id="foto-principal" src="${galeria[0]}" alt="${altFoto}">` : ''}
         <button type="button" class="fav-btn large" id="fav-detalhe" style="position:absolute;margin:.7rem;" aria-label="Favoritar"></button>
       </div>
+      ${galeria.length > 1 ? `
+        <div class="fotos-galeria-strip">
+          ${galeria.map((url, i) => `<button type="button" class="fotos-galeria-thumb${i === 0 ? ' ativa' : ''}" data-galeria-foto="${i}"><img src="${url}" alt="Foto ${i + 1} de ${galeria.length}"></button>`).join('')}
+        </div>
+      ` : ''}
 
       <div class="detail-layout">
         <div>
@@ -110,6 +120,16 @@ async function carregar() {
     };
     atualizarFav();
     favBtn.addEventListener('click', () => { toggleFavorito(im.id); atualizarFav(); });
+
+    // Fase 7.2 — clicar numa miniatura troca a foto principal, sem recarregar
+    // a página nem depender de nenhuma biblioteca de carrossel.
+    document.querySelectorAll('[data-galeria-foto]').forEach((thumb) => {
+      thumb.addEventListener('click', () => {
+        const i = Number(thumb.dataset.galeriaFoto);
+        document.getElementById('foto-principal').src = galeria[i];
+        document.querySelectorAll('[data-galeria-foto]').forEach((t) => t.classList.toggle('ativa', t === thumb));
+      });
+    });
 
     if (im.lat != null && im.lng != null) {
       if (window.L) {

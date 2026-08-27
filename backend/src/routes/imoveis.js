@@ -3,6 +3,28 @@
 const { db } = require('../db');
 const { dispararWebhook } = require('../webhooks');
 
+// Fase 7.2 — galeria de fotos por imóvel, com limite combinado com o
+// cliente. `foto` (singular) segue existindo como "capa" — a primeira foto
+// da galeria — pra nenhuma outra página precisar mudar pra continuar
+// mostrando uma imagem de cada imóvel.
+const MAX_FOTOS = 50;
+
+// Decide a lista de fotos final a partir do body recebido:
+// - body.fotos (array) presente → usa ela (até MAX_FOTOS, descartando itens
+//   vazios) — inclusive um array vazio, que limpa a galeria de propósito.
+// - senão, body.foto (string, formato antigo) presente → vira galeria de 1.
+// - senão (nenhum dos dois veio) → mantém o que já existia (edição parcial).
+function resolverFotos(body, fotosExistentesJson) {
+  if (Array.isArray(body.fotos)) {
+    return body.fotos.filter((f) => typeof f === 'string' && f.trim() !== '').slice(0, MAX_FOTOS);
+  }
+  if (body.foto !== undefined) {
+    const f = String(body.foto || '').trim();
+    return f ? [f] : [];
+  }
+  return JSON.parse(fotosExistentesJson || '[]');
+}
+
 function rowToImovel(row) {
   return {
     id: row.id,
@@ -19,6 +41,7 @@ function rowToImovel(row) {
     descricao: row.descricao,
     amenities: JSON.parse(row.amenities || '[]'),
     foto: row.foto,
+    fotos: JSON.parse(row.fotos || '[]'),
     lat: row.lat,
     lng: row.lng,
     status: row.status,
@@ -109,13 +132,15 @@ function registerImoveisRoutes(router) {
       contaId = conta.id;
     }
 
+    const fotos = resolverFotos(body, '[]');
+
     const info = db.prepare(`
-      INSERT INTO imoveis (tipo, finalidade, preco, titulo, bairro, cidade, quartos, banheiros, vagas, area, descricao, amenities, foto, lat, lng, status, conta_id)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      INSERT INTO imoveis (tipo, finalidade, preco, titulo, bairro, cidade, quartos, banheiros, vagas, area, descricao, amenities, foto, fotos, lat, lng, status, conta_id)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `).run(
       body.tipo, body.finalidade, Number(body.preco), body.titulo, body.bairro, body.cidade,
       Number(body.quartos || 0), Number(body.banheiros || 0), Number(body.vagas || 0), Number(body.area || 0),
-      body.descricao || '', JSON.stringify(body.amenities || []), body.foto || '',
+      body.descricao || '', JSON.stringify(body.amenities || []), fotos[0] || '', JSON.stringify(fotos),
       body.lat != null && body.lat !== '' ? Number(body.lat) : null,
       body.lng != null && body.lng !== '' ? Number(body.lng) : null,
       body.status || 'disponivel',
@@ -147,13 +172,15 @@ function registerImoveisRoutes(router) {
       }
     }
 
+    const fotos = resolverFotos(body, existing.fotos);
+
     db.prepare(`
-      UPDATE imoveis SET tipo=?, finalidade=?, preco=?, titulo=?, bairro=?, cidade=?, quartos=?, banheiros=?, vagas=?, area=?, descricao=?, amenities=?, foto=?, lat=?, lng=?, status=?, conta_id=?, updated_at=datetime('now')
+      UPDATE imoveis SET tipo=?, finalidade=?, preco=?, titulo=?, bairro=?, cidade=?, quartos=?, banheiros=?, vagas=?, area=?, descricao=?, amenities=?, foto=?, fotos=?, lat=?, lng=?, status=?, conta_id=?, updated_at=datetime('now')
       WHERE id = ?
     `).run(
       merged.tipo, merged.finalidade, Number(merged.preco), merged.titulo, merged.bairro, merged.cidade,
       Number(merged.quartos || 0), Number(merged.banheiros || 0), Number(merged.vagas || 0), Number(merged.area || 0),
-      merged.descricao || '', JSON.stringify(merged.amenities || []), merged.foto || '',
+      merged.descricao || '', JSON.stringify(merged.amenities || []), fotos[0] || '', JSON.stringify(fotos),
       merged.lat != null && merged.lat !== '' ? Number(merged.lat) : null,
       merged.lng != null && merged.lng !== '' ? Number(merged.lng) : null,
       merged.status || 'disponivel', contaId, Number(params.id)
@@ -179,4 +206,4 @@ function registerImoveisRoutes(router) {
   });
 }
 
-module.exports = { registerImoveisRoutes, rowToImovel, validarPayload };
+module.exports = { registerImoveisRoutes, rowToImovel, validarPayload, resolverFotos, MAX_FOTOS };

@@ -19,7 +19,7 @@
 
 const crypto = require('node:crypto');
 const { db, hashPassword } = require('../db');
-const { rowToImovel, validarPayload } = require('./imoveis');
+const { rowToImovel, validarPayload, resolverFotos } = require('./imoveis');
 
 const SESSION_TTL_MS = 1000 * 60 * 60 * 24 * 7; // 7 dias, igual ao login do painel interno
 
@@ -172,13 +172,15 @@ function registerContasRoutes(router) {
     const erros = validarPayload(body);
     if (erros.length) return res.json(400, { error: 'Payload inválido', detalhes: erros });
 
+    const fotos = resolverFotos(body, '[]');
+
     const info = db.prepare(`
-      INSERT INTO imoveis (tipo, finalidade, preco, titulo, bairro, cidade, quartos, banheiros, vagas, area, descricao, amenities, foto, lat, lng, status, conta_id)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      INSERT INTO imoveis (tipo, finalidade, preco, titulo, bairro, cidade, quartos, banheiros, vagas, area, descricao, amenities, foto, fotos, lat, lng, status, conta_id)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `).run(
       body.tipo, body.finalidade, Number(body.preco), body.titulo, body.bairro, body.cidade,
       Number(body.quartos || 0), Number(body.banheiros || 0), Number(body.vagas || 0), Number(body.area || 0),
-      body.descricao || '', JSON.stringify(body.amenities || []), body.foto || '',
+      body.descricao || '', JSON.stringify(body.amenities || []), fotos[0] || '', JSON.stringify(fotos),
       body.lat != null && body.lat !== '' ? Number(body.lat) : null,
       body.lng != null && body.lng !== '' ? Number(body.lng) : null,
       body.status || 'disponivel',
@@ -200,13 +202,15 @@ function registerContasRoutes(router) {
     const erros = validarPayload(merged);
     if (erros.length) return res.json(400, { error: 'Payload inválido', detalhes: erros });
 
+    const fotos = resolverFotos(body, existing.fotos);
+
     db.prepare(`
-      UPDATE imoveis SET tipo=?, finalidade=?, preco=?, titulo=?, bairro=?, cidade=?, quartos=?, banheiros=?, vagas=?, area=?, descricao=?, amenities=?, foto=?, lat=?, lng=?, status=?, updated_at=datetime('now')
+      UPDATE imoveis SET tipo=?, finalidade=?, preco=?, titulo=?, bairro=?, cidade=?, quartos=?, banheiros=?, vagas=?, area=?, descricao=?, amenities=?, foto=?, fotos=?, lat=?, lng=?, status=?, updated_at=datetime('now')
       WHERE id = ?
     `).run(
       merged.tipo, merged.finalidade, Number(merged.preco), merged.titulo, merged.bairro, merged.cidade,
       Number(merged.quartos || 0), Number(merged.banheiros || 0), Number(merged.vagas || 0), Number(merged.area || 0),
-      merged.descricao || '', JSON.stringify(merged.amenities || []), merged.foto || '',
+      merged.descricao || '', JSON.stringify(merged.amenities || []), fotos[0] || '', JSON.stringify(fotos),
       merged.lat != null && merged.lat !== '' ? Number(merged.lat) : null,
       merged.lng != null && merged.lng !== '' ? Number(merged.lng) : null,
       merged.status || 'disponivel',

@@ -61,7 +61,7 @@
 </main>
 
 <div class="modal-backdrop" id="modal-backdrop">
-  <div class="modal">
+  <div class="modal" style="max-width:720px;">
     <h3 id="modal-titulo">Novo imóvel</h3>
     <form class="form-stack" id="form-imovel">
       <input type="hidden" id="f-id">
@@ -127,8 +127,12 @@
           <textarea id="f-descricao" rows="3"></textarea>
         </div>
         <div class="field span2">
-          <label>Comodidades (separadas por vírgula)</label>
-          <input type="text" id="f-amenities" placeholder="Portaria 24h, Academia, Varanda">
+          <label>Comodidades</label>
+          <div id="comodidades-lista"></div>
+          <div style="margin-top:.6rem;">
+            <label style="font-weight:400;font-size:.8rem;color:var(--ink-faint);">Outras (separadas por vírgula, opcional)</label>
+            <input type="text" id="f-comodidades-extra" placeholder="Ex: Vista para o mar, Pomar">
+          </div>
         </div>
         <div class="field span2">
           <label>Foto</label>
@@ -202,6 +206,37 @@ async function carregarStats() {
 
 let imoveisCache = [];
 
+/* Fase 7.2 — lista de comodidades pra marcar com clique, agrupada por
+   categoria (igual a como CRMs de imóveis costumam organizar). Continua
+   compatível com imóveis antigos: qualquer comodidade que não esteja aqui
+   na lista fica visível/editável no campo "Outras". */
+const COMODIDADES_GRUPOS = [
+  { titulo: 'Características do imóvel', itens: [
+    'Varanda', 'Sacada', 'Terraço', 'Área de serviço', 'Armário embutido', 'Armário de cozinha',
+    'Closet', 'Escritório', 'Churrasqueira', 'Cozinha americana', 'Living integrado', 'Lavabo',
+  ] },
+  { titulo: 'Lazer e segurança do condomínio', itens: [
+    'Piscina', 'Academia', 'Salão de festas', 'Playground', 'Quadra poliesportiva', 'Espaço gourmet',
+    'Portaria 24h', 'Segurança 24h', 'Elevador', 'Portão eletrônico',
+  ] },
+  { titulo: 'Instalações e acabamento', itens: [
+    'Ar condicionado', 'Aquecedor', 'Internet/Wi-Fi', 'Interfone', 'Piso frio', 'Porcelanato',
+    'Piso laminado', 'Piso de madeira', 'Granito', 'Mármore',
+  ] },
+];
+const COMODIDADES_TODAS = COMODIDADES_GRUPOS.flatMap(g => g.itens);
+
+function renderComodidadesChecklist() {
+  document.getElementById('comodidades-lista').innerHTML = COMODIDADES_GRUPOS.map(g => `
+    <div class="comodidades-grupo">
+      <p class="comodidades-titulo">${g.titulo}</p>
+      <div class="comodidades-grid">
+        ${g.itens.map(item => `<label class="comodidade-item"><input type="checkbox" value="${item}"> ${item}</label>`).join('')}
+      </div>
+    </div>
+  `).join('');
+}
+
 async function carregarImoveis() {
   try {
     const resp = await apiConta('/contas/me/imoveis');
@@ -234,6 +269,8 @@ function abrirModal(id) {
   form.reset();
   document.getElementById('f-id').value = '';
   document.getElementById('modal-titulo').textContent = id ? 'Editar imóvel' : 'Novo imóvel';
+  renderComodidadesChecklist();
+  document.getElementById('f-comodidades-extra').value = '';
   if (id) {
     const im = imoveisCache.find(i => i.id === id);
     if (im) {
@@ -250,7 +287,11 @@ function abrirModal(id) {
       document.getElementById('f-vagas').value = im.vagas;
       document.getElementById('f-area').value = im.area;
       document.getElementById('f-descricao').value = im.descricao || '';
-      document.getElementById('f-amenities').value = (im.amenities || []).join(', ');
+      const amenitiesSet = new Set(im.amenities || []);
+      document.querySelectorAll('#comodidades-lista input[type=checkbox]').forEach(cb => {
+        cb.checked = amenitiesSet.has(cb.value);
+      });
+      document.getElementById('f-comodidades-extra').value = (im.amenities || []).filter(a => !COMODIDADES_TODAS.includes(a)).join(', ');
       document.getElementById('f-foto').value = im.foto || '';
       atualizarPreviewFoto(im.foto || '');
     }
@@ -338,7 +379,10 @@ document.getElementById('form-imovel').addEventListener('submit', async (e) => {
     vagas: Number(document.getElementById('f-vagas').value),
     area: Number(document.getElementById('f-area').value),
     descricao: document.getElementById('f-descricao').value,
-    amenities: document.getElementById('f-amenities').value.split(',').map(s => s.trim()).filter(Boolean),
+    amenities: [
+      ...Array.from(document.querySelectorAll('#comodidades-lista input[type=checkbox]:checked')).map(cb => cb.value),
+      ...document.getElementById('f-comodidades-extra').value.split(',').map(s => s.trim()).filter(Boolean),
+    ],
     foto: document.getElementById('f-foto').value.trim(),
   };
 

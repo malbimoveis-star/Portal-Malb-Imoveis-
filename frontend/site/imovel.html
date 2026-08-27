@@ -70,7 +70,7 @@ async function carregar() {
             <h1 style="font-size:1.7rem;">${im.titulo}</h1>
             <span class="badge ${im.finalidade}" style="position:static;display:inline-block;">${im.finalidade === 'venda' ? 'Venda' : 'Aluguel'}</span>
           </div>
-          <p style="color:var(--ink-faint);margin:.4rem 0 1rem;">${im.bairro}, ${im.cidade}</p>
+          <p style="color:var(--ink-faint);margin:.4rem 0 1rem;">${im.bairro}, ${im.cidade}${im.estado ? ' - ' + im.estado : ''}</p>
           <div class="price" style="font-size:1.8rem;font-weight:700;">${fmtPreco(im.preco, im.finalidade)}${per}</div>
 
           <div class="feature-grid">

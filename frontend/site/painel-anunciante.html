@@ -87,7 +87,7 @@
         </div>
         <div class="field">
           <label>Preço (R$)</label>
-          <input type="number" id="f-preco" min="0" step="1" required>
+          <input type="text" id="f-preco" inputmode="decimal" placeholder="0,00" required>
         </div>
         <div class="field">
           <label>Status</label>
@@ -370,7 +370,7 @@ function abrirModal(id) {
       document.getElementById('f-titulo').value = im.titulo;
       document.getElementById('f-tipo').value = im.tipo;
       document.getElementById('f-finalidade').value = im.finalidade;
-      document.getElementById('f-preco').value = im.preco;
+      document.getElementById('f-preco').value = numeroParaMoeda(im.preco);
       document.getElementById('f-status').value = im.status;
       document.getElementById('f-cep').value = im.cep || '';
       document.getElementById('f-rua').value = im.rua || '';
@@ -481,6 +481,8 @@ document.getElementById('f-foto-arquivo').addEventListener('change', async (e) =
   renderFotosPreview();
 });
 
+aplicarMascaraMoeda(document.getElementById('f-preco'));
+
 document.getElementById('f-cep').addEventListener('input', (e) => {
   e.target.value = formatarCep(e.target.value);
 });
@@ -512,7 +514,7 @@ document.getElementById('form-imovel').addEventListener('submit', async (e) => {
     titulo: document.getElementById('f-titulo').value,
     tipo: document.getElementById('f-tipo').value,
     finalidade: document.getElementById('f-finalidade').value,
-    preco: Number(document.getElementById('f-preco').value),
+    preco: moedaParaNumero(document.getElementById('f-preco').value),
     status: document.getElementById('f-status').value,
     ...endereco,
     quartos: Number(document.getElementById('f-quartos').value),

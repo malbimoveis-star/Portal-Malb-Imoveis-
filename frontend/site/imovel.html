@@ -54,13 +54,18 @@ async function carregar() {
 
     document.getElementById('conteudo').innerHTML = `
       <a href="busca.html" class="btn btn-ghost" style="margin:1.4rem 0;">&larr; Voltar</a>
-      <div class="detail-hero">
+      <div class="detail-hero" id="galeria-hero">
         ${galeria.length ? `<img id="foto-principal" src="${galeria[0]}" alt="${altFoto}">` : ''}
         <button type="button" class="fav-btn large" id="fav-detalhe" style="position:absolute;margin:.7rem;" aria-label="Favoritar"></button>
+        ${galeria.length > 1 ? `
+          <button type="button" class="galeria-seta galeria-seta-prev" id="galeria-prev" aria-label="Foto anterior">&#8249;</button>
+          <button type="button" class="galeria-seta galeria-seta-next" id="galeria-next" aria-label="Próxima foto">&#8250;</button>
+          <div class="galeria-contador" id="galeria-contador">1 / ${galeria.length}</div>
+        ` : ''}
       </div>
       ${galeria.length > 1 ? `
-        <div class="fotos-galeria-strip">
-          ${galeria.map((url, i) => `<button type="button" class="fotos-galeria-thumb${i === 0 ? ' ativa' : ''}" data-galeria-foto="${i}"><img src="${url}" alt="Foto ${i + 1} de ${galeria.length}"></button>`).join('')}
+        <div class="galeria-dots" id="galeria-dots">
+          ${galeria.map((_, i) => `<button type="button" class="galeria-dot${i === 0 ? ' ativo' : ''}" data-galeria-foto="${i}" aria-label="Ir para foto ${i + 1} de ${galeria.length}"></button>`).join('')}
         </div>
       ` : ''}
 
@@ -121,15 +126,36 @@ async function carregar() {
     atualizarFav();
     favBtn.addEventListener('click', () => { toggleFavorito(im.id); atualizarFav(); });
 
-    // Fase 7.2 — clicar numa miniatura troca a foto principal, sem recarregar
-    // a página nem depender de nenhuma biblioteca de carrossel.
-    document.querySelectorAll('[data-galeria-foto]').forEach((thumb) => {
-      thumb.addEventListener('click', () => {
-        const i = Number(thumb.dataset.galeriaFoto);
-        document.getElementById('foto-principal').src = galeria[i];
-        document.querySelectorAll('[data-galeria-foto]').forEach((t) => t.classList.toggle('ativa', t === thumb));
-      });
-    });
+    // Fase 7.3 — carrossel de fotos: setas (anterior/próxima) com volta ao
+    // início, bolinhas indicadoras e arrastar o dedo (swipe) no celular —
+    // sem depender de nenhuma biblioteca externa de carrossel.
+    if (galeria.length > 1) {
+      let indiceAtual = 0;
+      const fotoEl = document.getElementById('foto-principal');
+      const contadorEl = document.getElementById('galeria-contador');
+      const dots = Array.from(document.querySelectorAll('[data-galeria-foto]'));
+
+      function irPara(i) {
+        indiceAtual = (i + galeria.length) % galeria.length;
+        fotoEl.src = galeria[indiceAtual];
+        contadorEl.textContent = `${indiceAtual + 1} / ${galeria.length}`;
+        dots.forEach((d, di) => d.classList.toggle('ativo', di === indiceAtual));
+      }
+
+      document.getElementById('galeria-prev').addEventListener('click', () => irPara(indiceAtual - 1));
+      document.getElementById('galeria-next').addEventListener('click', () => irPara(indiceAtual + 1));
+      dots.forEach((dot) => dot.addEventListener('click', () => irPara(Number(dot.dataset.galeriaFoto))));
+
+      const hero = document.getElementById('galeria-hero');
+      let touchStartX = null;
+      hero.addEventListener('touchstart', (e) => { touchStartX = e.touches[0].clientX; }, { passive: true });
+      hero.addEventListener('touchend', (e) => {
+        if (touchStartX == null) return;
+        const dx = e.changedTouches[0].clientX - touchStartX;
+        if (Math.abs(dx) > 40) irPara(indiceAtual + (dx < 0 ? 1 : -1));
+        touchStartX = null;
+      }, { passive: true });
+    }
 
     if (im.lat != null && im.lng != null) {
       if (window.L) {

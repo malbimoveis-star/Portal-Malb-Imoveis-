@@ -19,7 +19,7 @@
 
 const crypto = require('node:crypto');
 const { db, hashPassword } = require('../db');
-const { rowToImovel } = require('./imoveis');
+const { rowToImovel, validarPayload } = require('./imoveis');
 
 const SESSION_TTL_MS = 1000 * 60 * 60 * 24 * 7; // 7 dias, igual ao login do painel interno
 
@@ -159,6 +159,73 @@ function registerContasRoutes(router) {
     if (!conta) return res.json(401, { error: 'Autenticação necessária' });
     const rows = db.prepare('SELECT * FROM imoveis WHERE conta_id = ? ORDER BY created_at DESC').all(conta.id);
     res.json(200, { data: rows.map(rowToImovel), total: rows.length });
+  });
+
+  // Fase 7.2 — auto-cadastro de imóveis pelo próprio anunciante, sem
+  // depender do admin criar/vincular pra ele. O conta_id aqui é sempre o da
+  // própria conta logada (via token) — nunca vem do body, então não tem
+  // como uma conta cadastrar ou mexer no imóvel de outra.
+  router.post('/api/contas/me/imoveis', (req, res, params, query, body, user, token) => {
+    const conta = getContaFromToken(token);
+    if (!conta) return res.json(401, { error: 'Autenticação necessária' });
+
+    const erros = validarPayload(body);
+    if (erros.length) return res.json(400, { error: 'Payload inválido', detalhes: erros });
+
+    const info = db.prepare(`
+      INSERT INTO imoveis (tipo, finalidade, preco, titulo, bairro, cidade, quartos, banheiros, vagas, area, descricao, amenities, foto, lat, lng, status, conta_id)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `).run(
+      body.tipo, body.finalidade, Number(body.preco), body.titulo, body.bairro, body.cidade,
+      Number(body.quartos || 0), Number(body.banheiros || 0), Number(body.vagas || 0), Number(body.area || 0),
+      body.descricao || '', JSON.stringify(body.amenities || []), body.foto || '',
+      body.lat != null && body.lat !== '' ? Number(body.lat) : null,
+      body.lng != null && body.lng !== '' ? Number(body.lng) : null,
+      body.status || 'disponivel',
+      conta.id
+    );
+    const row = db.prepare('SELECT * FROM imoveis WHERE id = ?').get(info.lastInsertRowid);
+    res.json(201, { data: rowToImovel(row) });
+  });
+
+  router.put('/api/contas/me/imoveis/:id', (req, res, params, query, body, user, token) => {
+    const conta = getContaFromToken(token);
+    if (!conta) return res.json(401, { error: 'Autenticação necessária' });
+
+    const existing = db.prepare('SELECT * FROM imoveis WHERE id = ?').get(Number(params.id));
+    if (!existing) return res.json(404, { error: 'Imóvel não encontrado' });
+    if (existing.conta_id !== conta.id) return res.json(403, { error: 'Este imóvel não pertence à sua conta' });
+
+    const merged = { ...rowToImovel(existing), ...body };
+    const erros = validarPayload(merged);
+    if (erros.length) return res.json(400, { error: 'Payload inválido', detalhes: erros });
+
+    db.prepare(`
+      UPDATE imoveis SET tipo=?, finalidade=?, preco=?, titulo=?, bairro=?, cidade=?, quartos=?, banheiros=?, vagas=?, area=?, descricao=?, amenities=?, foto=?, lat=?, lng=?, status=?, updated_at=datetime('now')
+      WHERE id = ?
+    `).run(
+      merged.tipo, merged.finalidade, Number(merged.preco), merged.titulo, merged.bairro, merged.cidade,
+      Number(merged.quartos || 0), Number(merged.banheiros || 0), Number(merged.vagas || 0), Number(merged.area || 0),
+      merged.descricao || '', JSON.stringify(merged.amenities || []), merged.foto || '',
+      merged.lat != null && merged.lat !== '' ? Number(merged.lat) : null,
+      merged.lng != null && merged.lng !== '' ? Number(merged.lng) : null,
+      merged.status || 'disponivel',
+      existing.id
+    );
+    const row = db.prepare('SELECT * FROM imoveis WHERE id = ?').get(existing.id);
+    res.json(200, { data: rowToImovel(row) });
+  });
+
+  router.delete('/api/contas/me/imoveis/:id', (req, res, params, query, body, user, token) => {
+    const conta = getContaFromToken(token);
+    if (!conta) return res.json(401, { error: 'Autenticação necessária' });
+
+    const existing = db.prepare('SELECT * FROM imoveis WHERE id = ?').get(Number(params.id));
+    if (!existing) return res.json(404, { error: 'Imóvel não encontrado' });
+    if (existing.conta_id !== conta.id) return res.json(403, { error: 'Este imóvel não pertence à sua conta' });
+
+    db.prepare('DELETE FROM imoveis WHERE id = ?').run(existing.id);
+    res.json(204, {});
   });
 
   // Estatísticas básicas do anunciante: quantos imóveis tem (e em que

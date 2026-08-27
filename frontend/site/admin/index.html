@@ -106,9 +106,9 @@
     <div class="table-wrap">
       <table>
         <thead><tr>
-          <th>Tipo</th><th>Nome</th><th>E-mail</th><th>CRECI</th><th>Plano</th><th>Assinatura</th><th>Imóveis</th><th>Leads</th>
+          <th>Tipo</th><th>Nome</th><th>E-mail</th><th>CRECI</th><th>Plano</th><th>Assinatura</th><th>Imóveis</th><th>Leads</th><th>Ações</th>
         </tr></thead>
-        <tbody id="tbody-contas"><tr><td colspan="8">Carregando…</td></tr></tbody>
+        <tbody id="tbody-contas"><tr><td colspan="9">Carregando…</td></tr></tbody>
       </table>
     </div>
   </section>
@@ -881,11 +881,25 @@ async function carregarContas() {
         <td><span class="status-pill ${STATUS_ASSINATURA_PILL[c.statusAssinatura] || ''}">${STATUS_ASSINATURA_LABEL[c.statusAssinatura] || c.statusAssinatura}</span></td>
         <td>${c.totalImoveis}</td>
         <td>${c.totalLeads}</td>
+        <td><button class="btn btn-danger" data-excluir-conta="${c.id}">Excluir</button></td>
       </tr>
-    `).join('') : '<tr><td colspan="8" style="color:var(--ink-faint);">Nenhuma conta de anunciante cadastrada ainda.</td></tr>';
+    `).join('') : '<tr><td colspan="9" style="color:var(--ink-faint);">Nenhuma conta de anunciante cadastrada ainda.</td></tr>';
+    document.querySelectorAll('[data-excluir-conta]').forEach(b => b.addEventListener('click', () => excluirConta(Number(b.dataset.excluirConta))));
   } catch (err) {
     const tbody = document.getElementById('tbody-contas');
-    if (tbody) tbody.innerHTML = `<tr><td colspan="8" style="color:var(--danger);">Erro ao carregar: ${err.message}</td></tr>`;
+    if (tbody) tbody.innerHTML = `<tr><td colspan="9" style="color:var(--danger);">Erro ao carregar: ${err.message}</td></tr>`;
+  }
+}
+
+async function excluirConta(id) {
+  if (!confirm('Excluir esta conta de anunciante? O login dela para de funcionar. Os imóveis dela não são apagados, só ficam sem anunciante vinculado (viram "imóvel próprio da Malb").')) return;
+  try {
+    await api('/contas/' + id, { method: 'DELETE', auth: true });
+    showToast('Conta excluída.');
+    carregarContas();
+    carregarImoveis();
+  } catch (err) {
+    showToast('Erro ao excluir: ' + err.message);
   }
 }
 

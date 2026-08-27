@@ -5,8 +5,32 @@
 const API_BASE = '/api';
 
 function fmtPreco(valor, finalidade) {
-  const s = 'R$ ' + Number(valor).toLocaleString('pt-BR');
+  const s = 'R$ ' + Number(valor).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   return finalidade === 'aluguel' ? s : s;
+}
+
+/* Fase 7.4 — formatação de moeda brasileira pro campo de preço dos
+   formulários de cadastro/edição de imóvel (admin e painel do anunciante).
+   Sem isso, um <input type="number"> não mostra separador de milhar nem
+   força duas casas decimais, e usa ponto em vez de vírgula — o que confunde
+   quem está acostumado com "R$ 4.500,00". A pessoa digita o preço do jeito
+   que quiser ("4500", "4500,90", "4.500,90") e só quando ela sai do campo
+   (blur) é que ele vira "4.500,90" — formatar enquanto ela ainda está
+   digitando obrigaria a preencher os centavos primeiro, o que é estranho
+   pra um valor de 6-7 dígitos como preço de imóvel. */
+function numeroParaMoeda(num) {
+  return Number(num || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
+function moedaParaNumero(texto) {
+  if (!texto) return 0;
+  const limpo = String(texto).trim().replace(/\./g, '').replace(',', '.').replace(/[^\d.]/g, '');
+  return Number(limpo) || 0;
+}
+function aplicarMascaraMoeda(inputEl) {
+  inputEl.addEventListener('blur', () => {
+    if (!inputEl.value.trim()) return;
+    inputEl.value = numeroParaMoeda(moedaParaNumero(inputEl.value));
+  });
 }
 
 /* SEO — Fase 6.1. O servidor (backend/src/seo.js) já injeta o título, a

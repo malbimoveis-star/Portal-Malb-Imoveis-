@@ -153,12 +153,31 @@
           </select>
         </div>
         <div class="field">
+          <label>CEP</label>
+          <input type="text" id="f-cep" placeholder="00000-000" maxlength="9" inputmode="numeric">
+          <div id="f-cep-status" style="font-size:.75rem;color:var(--ink-faint);margin-top:.25rem;"></div>
+        </div>
+        <div class="field span2">
+          <label>Rua</label>
+          <input type="text" id="f-rua" placeholder="Ex: Avenida Paulista">
+        </div>
+        <div class="field">
+          <label>Número</label>
+          <input type="text" id="f-numero" placeholder="Ex: 1000">
+        </div>
+        <div class="field">
           <label>Bairro</label>
           <input type="text" id="f-bairro" required>
         </div>
         <div class="field">
           <label>Cidade</label>
           <input type="text" id="f-cidade" required>
+        </div>
+        <div class="field">
+          <label>Estado</label>
+          <select id="f-estado">
+            <option value="">Selecione</option>
+          </select>
         </div>
         <div class="field">
           <label>Quartos</label>
@@ -199,11 +218,11 @@
           </select>
         </div>
         <div class="field">
-          <label>Latitude (opcional, para o mapa)</label>
+          <label>Latitude (preenchido automaticamente pelo endereço; pode ajustar)</label>
           <input type="number" id="f-lat" step="any" placeholder="-23.5890">
         </div>
         <div class="field">
-          <label>Longitude (opcional, para o mapa)</label>
+          <label>Longitude (preenchido automaticamente pelo endereço; pode ajustar)</label>
           <input type="number" id="f-lng" step="any" placeholder="-46.6350">
         </div>
       </div>
@@ -388,6 +407,69 @@ const COMODIDADES_GRUPOS = [
   ] },
 ];
 const COMODIDADES_TODAS = COMODIDADES_GRUPOS.flatMap(g => g.itens);
+
+/* Fase 7.3 — endereço completo, mesma lógica do painel do anunciante: CEP →
+   ViaCEP preenche rua/bairro/cidade/estado; ao salvar, o endereço completo
+   vira lat/lng via Nominatim (OpenStreetMap) — aqui no admin os campos de
+   lat/lng continuam visíveis e editáveis manualmente (o geocode só sugere;
+   se o admin já tiver ajustado a mão, o valor manual é respeitado quando o
+   Nominatim não encontra nada). */
+const UF_LIST = [
+  ['AC','Acre'],['AL','Alagoas'],['AP','Amapá'],['AM','Amazonas'],['BA','Bahia'],['CE','Ceará'],
+  ['DF','Distrito Federal'],['ES','Espírito Santo'],['GO','Goiás'],['MA','Maranhão'],['MT','Mato Grosso'],
+  ['MS','Mato Grosso do Sul'],['MG','Minas Gerais'],['PA','Pará'],['PB','Paraíba'],['PR','Paraná'],
+  ['PE','Pernambuco'],['PI','Piauí'],['RJ','Rio de Janeiro'],['RN','Rio Grande do Norte'],
+  ['RS','Rio Grande do Sul'],['RO','Rondônia'],['RR','Roraima'],['SC','Santa Catarina'],
+  ['SP','São Paulo'],['SE','Sergipe'],['TO','Tocantins'],
+];
+function popularEstados(selectEl) {
+  selectEl.innerHTML = '<option value="">Selecione</option>' + UF_LIST.map(([sigla, nome]) => `<option value="${sigla}">${nome} (${sigla})</option>`).join('');
+}
+
+function formatarCep(v) {
+  const digitos = v.replace(/\D/g, '').slice(0, 8);
+  return digitos.length > 5 ? digitos.slice(0, 5) + '-' + digitos.slice(5) : digitos;
+}
+
+let ultimaBuscaCep = '';
+async function buscarCep(cepInputEl, statusEl, campos) {
+  const cep = cepInputEl.value.replace(/\D/g, '');
+  if (cep.length !== 8) { statusEl.textContent = ''; return; }
+  if (cep === ultimaBuscaCep) return;
+  ultimaBuscaCep = cep;
+  statusEl.textContent = 'Buscando endereço…';
+  statusEl.style.color = 'var(--ink-faint)';
+  try {
+    const resp = await fetch(`https://viacep.com.br/ws/${cep}/json/`);
+    const data = await resp.json();
+    if (data.erro) {
+      statusEl.textContent = 'CEP não encontrado. Preencha o endereço manualmente.';
+      statusEl.style.color = 'var(--danger)';
+      return;
+    }
+    if (data.logradouro) campos.rua.value = data.logradouro;
+    if (data.bairro) campos.bairro.value = data.bairro;
+    if (data.localidade) campos.cidade.value = data.localidade;
+    if (data.uf) campos.estado.value = data.uf;
+    statusEl.textContent = 'Endereço encontrado — confira e complete o número.';
+    statusEl.style.color = 'var(--ok, #2a9d5c)';
+  } catch (err) {
+    statusEl.textContent = 'Não foi possível buscar o CEP agora (sem conexão?). Preencha manualmente.';
+    statusEl.style.color = 'var(--danger)';
+  }
+}
+
+async function geocodificarEndereco({ rua, numero, bairro, cidade, estado }) {
+  const partes = [rua && numero ? `${rua}, ${numero}` : rua, bairro, cidade, estado, 'Brasil'].filter(Boolean);
+  if (partes.length < 2) return null;
+  const q = encodeURIComponent(partes.join(', '));
+  try {
+    const resp = await fetch(`https://nominatim.openstreetmap.org/search?format=json&limit=1&countrycodes=br&q=${q}`);
+    const data = await resp.json();
+    if (data && data[0]) return { lat: Number(data[0].lat), lng: Number(data[0].lon) };
+  } catch (err) { /* silencioso — geocodificação é best-effort */ }
+  return null;
+}
 
 function renderComodidadesChecklist() {
   document.getElementById('comodidades-lista').innerHTML = COMODIDADES_GRUPOS.map(g => `
@@ -758,6 +840,9 @@ function abrirModal(id) {
   form.reset();
   document.getElementById('f-id').value = '';
   preencherSelectContas();
+  popularEstados(document.getElementById('f-estado'));
+  document.getElementById('f-cep-status').textContent = '';
+  ultimaBuscaCep = '';
   document.getElementById('modal-titulo').textContent = id ? 'Editar imóvel' : 'Novo imóvel';
   renderComodidadesChecklist();
   document.getElementById('f-comodidades-extra').value = '';
@@ -770,8 +855,12 @@ function abrirModal(id) {
       document.getElementById('f-finalidade').value = im.finalidade;
       document.getElementById('f-preco').value = im.preco;
       document.getElementById('f-status').value = im.status;
+      document.getElementById('f-cep').value = im.cep || '';
+      document.getElementById('f-rua').value = im.rua || '';
+      document.getElementById('f-numero').value = im.numero || '';
       document.getElementById('f-bairro').value = im.bairro;
       document.getElementById('f-cidade').value = im.cidade;
+      document.getElementById('f-estado').value = im.estado || '';
       document.getElementById('f-quartos').value = im.quartos;
       document.getElementById('f-banheiros').value = im.banheiros;
       document.getElementById('f-vagas').value = im.vagas;
@@ -791,6 +880,32 @@ function abrirModal(id) {
 }
 function fecharModal() { document.getElementById('modal-backdrop').classList.remove('show'); }
 
+document.getElementById('f-cep').addEventListener('input', (e) => {
+  e.target.value = formatarCep(e.target.value);
+});
+document.getElementById('f-cep').addEventListener('blur', async () => {
+  await buscarCep(document.getElementById('f-cep'), document.getElementById('f-cep-status'), {
+    rua: document.getElementById('f-rua'),
+    bairro: document.getElementById('f-bairro'),
+    cidade: document.getElementById('f-cidade'),
+    estado: document.getElementById('f-estado'),
+  });
+  // Sugere lat/lng a partir do endereço encontrado — só se os campos ainda
+  // estiverem vazios, pra não sobrescrever um ajuste manual já feito.
+  const latEl = document.getElementById('f-lat');
+  const lngEl = document.getElementById('f-lng');
+  if (!latEl.value.trim() && !lngEl.value.trim()) {
+    const coords = await geocodificarEndereco({
+      rua: document.getElementById('f-rua').value,
+      numero: document.getElementById('f-numero').value,
+      bairro: document.getElementById('f-bairro').value,
+      cidade: document.getElementById('f-cidade').value,
+      estado: document.getElementById('f-estado').value,
+    });
+    if (coords) { latEl.value = coords.lat; lngEl.value = coords.lng; }
+  }
+});
+
 document.getElementById('btn-novo-imovel').addEventListener('click', () => abrirModal(null));
 document.getElementById('btn-cancelar').addEventListener('click', fecharModal);
 document.getElementById('modal-backdrop').addEventListener('click', (e) => { if (e.target.id === 'modal-backdrop') fecharModal(); });
@@ -804,8 +919,12 @@ document.getElementById('form-imovel').addEventListener('submit', async (e) => {
     finalidade: document.getElementById('f-finalidade').value,
     preco: Number(document.getElementById('f-preco').value),
     status: document.getElementById('f-status').value,
+    cep: document.getElementById('f-cep').value,
+    rua: document.getElementById('f-rua').value,
+    numero: document.getElementById('f-numero').value,
     bairro: document.getElementById('f-bairro').value,
     cidade: document.getElementById('f-cidade').value,
+    estado: document.getElementById('f-estado').value,
     quartos: Number(document.getElementById('f-quartos').value),
     banheiros: Number(document.getElementById('f-banheiros').value),
     vagas: Number(document.getElementById('f-vagas').value),

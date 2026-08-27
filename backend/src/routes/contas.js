@@ -175,10 +175,11 @@ function registerContasRoutes(router) {
     const fotos = resolverFotos(body, '[]');
 
     const info = db.prepare(`
-      INSERT INTO imoveis (tipo, finalidade, preco, titulo, bairro, cidade, quartos, banheiros, vagas, area, descricao, amenities, foto, fotos, lat, lng, status, conta_id)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      INSERT INTO imoveis (tipo, finalidade, preco, titulo, cep, rua, numero, bairro, cidade, estado, quartos, banheiros, vagas, area, descricao, amenities, foto, fotos, lat, lng, status, conta_id)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `).run(
-      body.tipo, body.finalidade, Number(body.preco), body.titulo, body.bairro, body.cidade,
+      body.tipo, body.finalidade, Number(body.preco), body.titulo,
+      body.cep || '', body.rua || '', body.numero || '', body.bairro, body.cidade, body.estado || '',
       Number(body.quartos || 0), Number(body.banheiros || 0), Number(body.vagas || 0), Number(body.area || 0),
       body.descricao || '', JSON.stringify(body.amenities || []), fotos[0] || '', JSON.stringify(fotos),
       body.lat != null && body.lat !== '' ? Number(body.lat) : null,
@@ -205,10 +206,11 @@ function registerContasRoutes(router) {
     const fotos = resolverFotos(body, existing.fotos);
 
     db.prepare(`
-      UPDATE imoveis SET tipo=?, finalidade=?, preco=?, titulo=?, bairro=?, cidade=?, quartos=?, banheiros=?, vagas=?, area=?, descricao=?, amenities=?, foto=?, fotos=?, lat=?, lng=?, status=?, updated_at=datetime('now')
+      UPDATE imoveis SET tipo=?, finalidade=?, preco=?, titulo=?, cep=?, rua=?, numero=?, bairro=?, cidade=?, estado=?, quartos=?, banheiros=?, vagas=?, area=?, descricao=?, amenities=?, foto=?, fotos=?, lat=?, lng=?, status=?, updated_at=datetime('now')
       WHERE id = ?
     `).run(
-      merged.tipo, merged.finalidade, Number(merged.preco), merged.titulo, merged.bairro, merged.cidade,
+      merged.tipo, merged.finalidade, Number(merged.preco), merged.titulo,
+      merged.cep || '', merged.rua || '', merged.numero || '', merged.bairro, merged.cidade, merged.estado || '',
       Number(merged.quartos || 0), Number(merged.banheiros || 0), Number(merged.vagas || 0), Number(merged.area || 0),
       merged.descricao || '', JSON.stringify(merged.amenities || []), fotos[0] || '', JSON.stringify(fotos),
       merged.lat != null && merged.lat !== '' ? Number(merged.lat) : null,

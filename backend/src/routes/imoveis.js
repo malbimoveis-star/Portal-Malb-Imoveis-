@@ -32,8 +32,12 @@ function rowToImovel(row) {
     finalidade: row.finalidade,
     preco: row.preco,
     titulo: row.titulo,
+    cep: row.cep || '',
+    rua: row.rua || '',
+    numero: row.numero || '',
     bairro: row.bairro,
     cidade: row.cidade,
+    estado: row.estado || '',
     quartos: row.quartos,
     banheiros: row.banheiros,
     vagas: row.vagas,
@@ -52,6 +56,20 @@ function rowToImovel(row) {
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   };
+}
+
+// Fase 7.3 — versão pública (sem login) de um imóvel: tudo igual a
+// rowToImovel, menos `cep`, `rua` e `numero`. O endereço exato de um imóvel
+// só aparece pra quem já tem acesso autenticado a ele (o próprio anunciante
+// dono, o admin no CRM interno, ou um parceiro de API) — pra ninguém
+// conseguir chegar na porta de um imóvel sem passar por um corretor
+// primeiro, mesmo padrão dos portais imobiliários de mercado (VivaReal,
+// ZAP etc). `bairro`/`cidade`/`estado` continuam públicos — já dão a
+// localização aproximada, que é o que a busca e o mapa da página do imóvel
+// precisam.
+function rowToImovelPublico(row) {
+  const { cep, rua, numero, ...resto } = rowToImovel(row);
+  return resto;
 }
 
 const CAMPOS_OBRIGATORIOS = ['tipo', 'finalidade', 'preco', 'titulo', 'bairro', 'cidade'];
@@ -74,7 +92,11 @@ function validarPayload(body) {
 
 function registerImoveisRoutes(router) {
   // GET /api/imoveis?finalidade=&tipo=&quartosMin=&precoMax=&cidade=&bairro=&q=
-  router.get('/api/imoveis', (req, res, params, query) => {
+  // Rota pública (não exige login) — mas quando vem com um token válido do
+  // CRM interno (o admin usa essa mesma rota pra listar tudo com
+  // status=all), devolve o endereço completo, porque quem tá logado no
+  // painel precisa dele pra editar o imóvel.
+  router.get('/api/imoveis', (req, res, params, query, body, user) => {
     const clauses = [];
     const args = [];
 
@@ -108,13 +130,17 @@ function registerImoveisRoutes(router) {
 
     const where = clauses.length ? `WHERE ${clauses.join(' AND ')}` : '';
     const rows = db.prepare(`SELECT * FROM imoveis ${where} ORDER BY ${orderBy}`).all(...args);
-    res.json(200, { data: rows.map(rowToImovel), total: rows.length });
+    const mapper = user ? rowToImovel : rowToImovelPublico;
+    res.json(200, { data: rows.map(mapper), total: rows.length });
   });
 
-  router.get('/api/imoveis/:id', (req, res, params) => {
+  // GET /api/imoveis/:id — mesma lógica: com login (CRM interno) devolve
+  // endereço completo, sem login devolve só bairro/cidade/estado.
+  router.get('/api/imoveis/:id', (req, res, params, query, body, user) => {
     const row = db.prepare('SELECT * FROM imoveis WHERE id = ?').get(Number(params.id));
     if (!row) return res.json(404, { error: 'Imóvel não encontrado' });
-    res.json(200, { data: rowToImovel(row) });
+    const mapper = user ? rowToImovel : rowToImovelPublico;
+    res.json(200, { data: mapper(row) });
   });
 
   router.post('/api/imoveis', (req, res, params, query, body, user) => {
@@ -135,10 +161,11 @@ function registerImoveisRoutes(router) {
     const fotos = resolverFotos(body, '[]');
 
     const info = db.prepare(`
-      INSERT INTO imoveis (tipo, finalidade, preco, titulo, bairro, cidade, quartos, banheiros, vagas, area, descricao, amenities, foto, fotos, lat, lng, status, conta_id)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      INSERT INTO imoveis (tipo, finalidade, preco, titulo, cep, rua, numero, bairro, cidade, estado, quartos, banheiros, vagas, area, descricao, amenities, foto, fotos, lat, lng, status, conta_id)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `).run(
-      body.tipo, body.finalidade, Number(body.preco), body.titulo, body.bairro, body.cidade,
+      body.tipo, body.finalidade, Number(body.preco), body.titulo,
+      body.cep || '', body.rua || '', body.numero || '', body.bairro, body.cidade, body.estado || '',
       Number(body.quartos || 0), Number(body.banheiros || 0), Number(body.vagas || 0), Number(body.area || 0),
       body.descricao || '', JSON.stringify(body.amenities || []), fotos[0] || '', JSON.stringify(fotos),
       body.lat != null && body.lat !== '' ? Number(body.lat) : null,
@@ -175,10 +202,11 @@ function registerImoveisRoutes(router) {
     const fotos = resolverFotos(body, existing.fotos);
 
     db.prepare(`
-      UPDATE imoveis SET tipo=?, finalidade=?, preco=?, titulo=?, bairro=?, cidade=?, quartos=?, banheiros=?, vagas=?, area=?, descricao=?, amenities=?, foto=?, fotos=?, lat=?, lng=?, status=?, conta_id=?, updated_at=datetime('now')
+      UPDATE imoveis SET tipo=?, finalidade=?, preco=?, titulo=?, cep=?, rua=?, numero=?, bairro=?, cidade=?, estado=?, quartos=?, banheiros=?, vagas=?, area=?, descricao=?, amenities=?, foto=?, fotos=?, lat=?, lng=?, status=?, conta_id=?, updated_at=datetime('now')
       WHERE id = ?
     `).run(
-      merged.tipo, merged.finalidade, Number(merged.preco), merged.titulo, merged.bairro, merged.cidade,
+      merged.tipo, merged.finalidade, Number(merged.preco), merged.titulo,
+      merged.cep || '', merged.rua || '', merged.numero || '', merged.bairro, merged.cidade, merged.estado || '',
       Number(merged.quartos || 0), Number(merged.banheiros || 0), Number(merged.vagas || 0), Number(merged.area || 0),
       merged.descricao || '', JSON.stringify(merged.amenities || []), fotos[0] || '', JSON.stringify(fotos),
       merged.lat != null && merged.lat !== '' ? Number(merged.lat) : null,
@@ -206,4 +234,4 @@ function registerImoveisRoutes(router) {
   });
 }
 
-module.exports = { registerImoveisRoutes, rowToImovel, validarPayload, resolverFotos, MAX_FOTOS };
+module.exports = { registerImoveisRoutes, rowToImovel, rowToImovelPublico, validarPayload, resolverFotos, MAX_FOTOS };

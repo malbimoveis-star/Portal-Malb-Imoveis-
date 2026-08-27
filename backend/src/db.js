@@ -211,6 +211,18 @@ garantirColuna('imoveis', 'conta_id', 'INTEGER REFERENCES contas(id) ON DELETE S
 // busca, home, admin) precisa mudar pra continuar mostrando uma imagem.
 garantirColuna('imoveis', 'fotos', "TEXT NOT NULL DEFAULT '[]'");
 
+// Fase 7.3 — endereço completo (CEP, rua, número, estado), pra funcionar em
+// qualquer cidade do Brasil, não só São Paulo. `bairro`/`cidade` já
+// existiam; os campos novos são opcionais (payload antigo sem eles continua
+// funcionando) e `rua`/`numero`/`cep` só aparecem pro dono do imóvel e pro
+// admin — a API pública (busca, página do imóvel) nunca devolve esses três,
+// só bairro/cidade/estado, pra ninguém aparecer no endereço exato sem falar
+// antes com um corretor (mesmo padrão dos portais imobiliários de mercado).
+garantirColuna('imoveis', 'cep', 'TEXT');
+garantirColuna('imoveis', 'rua', 'TEXT');
+garantirColuna('imoveis', 'numero', 'TEXT');
+garantirColuna('imoveis', 'estado', 'TEXT');
+
 // Fase 5 — CRM interno: papel/ativo em users (para distinguir admin de
 // corretor e permitir desativar acesso sem apagar histórico), e atribuição
 // de leads a um corretor. Bancos já existentes (Fases 2-4) tinham só um

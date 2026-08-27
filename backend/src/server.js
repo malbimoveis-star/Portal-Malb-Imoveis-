@@ -92,7 +92,7 @@ function readBody(req) {
     let size = 0;
     req.on('data', (chunk) => {
       size += chunk.length;
-      if (size > 5 * 1024 * 1024) { // 5MB — evita payloads absurdos (ex: foto de imóvel)
+      if (size > 30 * 1024 * 1024) { // 30MB — dá pra caber uma galeria de até 50 fotos comprimidas
         reject(new Error('Payload muito grande'));
         req.destroy();
         return;

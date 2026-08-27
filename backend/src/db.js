@@ -205,6 +205,12 @@ garantirColuna('imoveis', 'referencia_externa', 'TEXT');
 // "imóvel próprio da Malb" — nada muda pros imóveis que já existem hoje.
 garantirColuna('imoveis', 'conta_id', 'INTEGER REFERENCES contas(id) ON DELETE SET NULL');
 
+// Fase 7.2 — galeria de fotos (até 50 por imóvel), guardada como um array
+// JSON. `foto` continua existindo e passa a significar "capa" (a primeira
+// da galeria) — assim nenhuma página que já lê `foto` direto (cards da
+// busca, home, admin) precisa mudar pra continuar mostrando uma imagem.
+garantirColuna('imoveis', 'fotos', "TEXT NOT NULL DEFAULT '[]'");
+
 // Fase 5 — CRM interno: papel/ativo em users (para distinguir admin de
 // corretor e permitir desativar acesso sem apagar histórico), e atribuição
 // de leads a um corretor. Bancos já existentes (Fases 2-4) tinham só um

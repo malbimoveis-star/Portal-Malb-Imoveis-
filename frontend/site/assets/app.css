@@ -230,6 +230,16 @@ tr:last-child td { border-bottom: none; }
 .field-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 0.7rem; }
 .field-grid .span2 { grid-column: 1/-1; }
 
+/* Fase 7.2 — lista de comodidades clicável (checkboxes agrupados) no lugar
+   do campo de texto livre separado por vírgula. */
+.comodidades-grupo { margin-bottom: 0.9rem; }
+.comodidades-grupo:last-child { margin-bottom: 0; }
+.comodidades-titulo { font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.04em; color: var(--ink-faint); margin: 0 0 0.5rem; font-weight: 700; }
+.comodidades-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 0.35rem 0.8rem; }
+.comodidade-item { display: flex; align-items: center; gap: 0.4rem; font-size: 0.85rem; font-weight: 400; cursor: pointer; }
+.comodidade-item input { width: auto; margin: 0; }
+@media (max-width: 640px) { .comodidades-grid { grid-template-columns: 1fr 1fr; } }
+
 .origem-pill { padding: 0.2rem 0.6rem; border-radius: 999px; font-size: 0.72rem; font-weight: 700; background: var(--accent-soft); color: var(--accent); white-space: nowrap; }
 
 .chave-box { display: block; background: var(--surface-2); border: 1px solid var(--border-strong); border-radius: 10px; padding: 0.8rem 1rem; margin: 0.8rem 0; font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace; font-size: 0.85rem; color: var(--ink); word-break: break-all; user-select: all; }

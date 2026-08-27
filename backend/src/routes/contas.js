@@ -310,6 +310,21 @@ function registerContasRoutes(router) {
     }));
     res.json(200, { data, total: data.length });
   });
+
+  // Fase 7.3 — excluir uma conta de anunciante pelo CRM interno (ex: uma
+  // conta de teste cadastrada com o tipo errado). Imóveis que pertenciam a
+  // essa conta não são apagados — só ficam sem anunciante vinculado (viram
+  // "imóvel próprio da Malb"), igual a quando o admin desvincula um imóvel
+  // manualmente no modal de edição.
+  router.delete('/api/contas/:id', (req, res, params, query, body, user) => {
+    if (!user) return res.json(401, { error: 'Autenticação necessária' });
+    const id = Number(params.id);
+    db.prepare('UPDATE imoveis SET conta_id = NULL WHERE conta_id = ?').run(id);
+    db.prepare('DELETE FROM contas_sessions WHERE conta_id = ?').run(id);
+    const info = db.prepare('DELETE FROM contas WHERE id = ?').run(id);
+    if (info.changes === 0) return res.json(404, { error: 'Conta não encontrada' });
+    res.json(204, null);
+  });
 }
 
 module.exports = { registerContasRoutes, getContaFromToken, rowToConta, rowToPlano };
